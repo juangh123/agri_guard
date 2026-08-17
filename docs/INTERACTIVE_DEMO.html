@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgriGuard — Live Demo</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',sans-serif; background:#0D1117; color:#e6edf3; overflow:hidden; height:100vh; }
+
+  /* ─── Scene System ─── */
+  .scene { display:none; width:100vw; height:100vh; position:absolute; top:0; left:0; }
+  .scene.active { display:flex; }
+
+  /* ─── Shared Components ─── */
+  .logo { display:flex; align-items:center; gap:10px; }
+  .logo svg { width:32px; height:32px; }
+  .logo h1 { font-size:22px; color:#fff; font-weight:800; }
+
+  .btn { padding:10px 20px; border:none; border-radius:6px; cursor:pointer; font-size:14px; font-weight:700; transition:all .2s; }
+  .btn-blue { background:#3498db; color:#fff; }
+  .btn-blue:hover { background:#2980b9; }
+  .btn-green { background:#2ecc71; color:#fff; }
+  .btn-green:hover { background:#27ae60; }
+  .btn-red { background:#e74c3c; color:#fff; }
+  .btn-red:hover { background:#c0392b; }
+  .btn-ghost { background:transparent; border:1px solid #444; color:#ccc; }
+
+  .input { width:100%; padding:12px; background:#111; border:1px solid #444; color:#fff; border-radius:6px; font-size:15px; }
+  .input:focus { border-color:#3498db; outline:none; }
+  .label { display:block; margin-bottom:6px; font-size:13px; color:#aaa; font-weight:600; }
+
+  /* ─── Step Indicator ─── */
+  #stepBar { position:fixed; top:0; left:0; right:0; height:4px; background:#1a1a1a; z-index:9999; display:flex; }
+  #stepBar .seg { flex:1; height:100%; background:#222; transition:background .3s; }
+  #stepBar .seg.done { background:#2ecc71; }
+  #stepBar .seg.active { background:#3498db; }
+
+  #stepLabel { position:fixed; top:8px; right:16px; z-index:9999; font-size:11px; color:#666; font-family:monospace; }
+
+  /* ─── Scene 1: Login ─── */
+  #scene-login { justify-content:center; align-items:center; }
+  .login-card { background:#161b22; padding:40px; border-radius:12px; width:360px; border:1px solid #30363d; box-shadow:0 8px 24px rgba(0,0,0,.4); }
+  .login-card h2 { text-align:center; color:#3498db; margin-bottom:30px; }
+  .login-card .form-group { margin-bottom:20px; }
+  .login-card .btn { width:100%; margin-top:10px; }
+  .login-card .footer { margin-top:20px; text-align:center; font-size:13px; }
+  .login-card .footer a { color:#3498db; text-decoration:none; }
+
+  /* ─── Scene 2: Dashboard ─── */
+  #scene-dashboard { flex-direction:row; }
+  .sidebar { width:380px; background:#161b22; border-right:1px solid #30363d; padding:20px; overflow-y:auto; display:flex; flex-direction:column; }
+  .sidebar .top-row { display:flex; justify-content:space-between; margin-bottom:20px; }
+  .sidebar .lang-select { padding:4px 8px; border-radius:4px; border:1px solid #444; background:#0D1117; color:#fff; font-size:12px; }
+  .sidebar .desc { color:#8b949e; font-size:13px; line-height:1.5; margin-bottom:20px; }
+
+  .layer-panel { background:#21262d; padding:15px; border-radius:8px; margin-bottom:20px; }
+  .layer-panel h3 { font-size:14px; color:#fff; margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+  .layer-item { display:flex; flex-direction:column; gap:2px; margin-bottom:8px; }
+  .layer-item label { display:flex; align-items:center; color:#c9d1d9; font-size:13px; cursor:pointer; font-weight:bold; }
+  .layer-item .legend { padding-left:22px; color:#6e7681; font-size:11px; font-style:italic; }
+
+  .stats-row { display:flex; gap:10px; margin-bottom:20px; }
+  .stat-card { flex:1; background:#21262d; padding:15px; border-radius:8px; text-align:center; }
+  .stat-card .num { font-size:24px; color:#fff; font-weight:bold; }
+  .stat-card .lbl { font-size:12px; color:#6e7681; }
+
+  .chart-section h3 { color:#fff; font-size:16px; border-bottom:1px solid #30363d; padding-bottom:10px; margin-bottom:15px; }
+
+  .alert-feed { flex-grow:1; }
+  .alert-item { background:#21262d; padding:12px; border-radius:6px; margin-bottom:10px; border-left:4px solid #e74c3c; animation:slideIn .4s ease; }
+  .alert-item .farm-name { color:#fff; font-size:14px; font-weight:bold; margin-bottom:4px; }
+  .alert-item .event-title { color:#e74c3c; font-size:12px; margin-bottom:4px; }
+  .alert-item .payout { color:#2ecc71; font-size:12px; font-family:monospace; margin-bottom:4px; }
+  .alert-item .ai-report { background:#0D1117; padding:8px; border-radius:4px; margin-top:8px; font-size:11px; color:#b1bac4; white-space:pre-wrap; }
+  .alert-item .meta { color:#6e7681; font-size:11px; display:flex; justify-content:space-between; margin-top:6px; }
+  .alert-item .status-paid { color:#2ecc71; font-weight:bold; }
+
+  @keyframes slideIn { from { opacity:0; transform:translateX(-20px); } to { opacity:1; transform:translateX(0); } }
+
+  /* Map area */
+  .map-area { flex-grow:1; position:relative; background:linear-gradient(135deg,#0a1628 0%,#0d1f3a 50%,#0a1628 100%); overflow:hidden; }
+  .map-grid { position:absolute; inset:0; opacity:.15; background-image:linear-gradient(rgba(52,152,219,.3) 1px,transparent 1px),linear-gradient(90deg,rgba(52,152,219,.3) 1px,transparent 1px); background-size:40px 40px; }
+  .map-glow { position:absolute; width:400px; height:400px; border-radius:50%; background:radial-gradient(circle,rgba(52,152,219,.08),transparent 70%); top:50%; left:50%; transform:translate(-50%,-50%); }
+
+  /* Farm pins */
+  .farm-pin { position:absolute; width:14px; height:14px; border-radius:50%; border:3px solid; transform:translate(-50%,-50%); z-index:5; transition:all .3s; }
+  .farm-pin.safe { background:#2ecc71; border-color:#27ae60; box-shadow:0 0 12px rgba(46,204,113,.6); }
+  .farm-pin.danger { background:#e74c3c; border-color:#c0392b; box-shadow:0 0 20px rgba(231,76,60,.8); animation:pulse 1s infinite; }
+  .farm-pin .tooltip { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); background:#161b22; padding:6px 10px; border-radius:4px; font-size:11px; white-space:nowrap; border:1px solid #30363d; display:none; }
+  .farm-pin:hover .tooltip { display:block; }
+
+  @keyframes pulse { 0%,100% { transform:translate(-50%,-50%) scale(1); } 50% { transform:translate(-50%,-50%) scale(1.3); } }
+
+  /* Disaster polygon */
+  .disaster-zone { position:absolute; border:2px dashed #e74c3c; background:rgba(231,76,60,.12); border-radius:50%; z-index:3; animation:zoneAppear .6s ease; }
+  @keyframes zoneAppear { from { opacity:0; transform:scale(.5); } to { opacity:1; transform:scale(1); } }
+
+  /* Chat widget */
+  .chat-widget { position:fixed; bottom:20px; right:20px; z-index:2000; }
+  .chat-panel { width:320px; height:400px; background:#161b22; border-radius:12px; display:flex; flex-direction:column; box-shadow:0 10px 25px rgba(0,0,0,.5); border:1px solid #30363d; }
+  .chat-header { padding:15px; border-bottom:1px solid #30363d; display:flex; justify-content:space-between; align-items:center; background:#21262d; border-radius:12px 12px 0 0; }
+  .chat-header .title { display:flex; align-items:center; gap:8px; color:#fff; font-weight:bold; }
+  .chat-body { flex-grow:1; padding:15px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; }
+  .chat-msg { max-width:80%; padding:10px; border-radius:8px; font-size:13px; line-height:1.4; }
+  .chat-msg.user { align-self:flex-end; background:#3498db; color:#fff; }
+  .chat-msg.ai { align-self:flex-start; background:#30363d; color:#c9d1d9; }
+  .chat-input-row { padding:10px; border-top:1px solid #30363d; display:flex; gap:5px; }
+  .chat-input-row input { flex-grow:1; padding:8px; border-radius:4px; border:none; background:#0D1117; color:#fff; }
+
+  /* ─── Scene 3: Register Farm ─── */
+  #scene-register { justify-content:center; align-items:center; background:#f4f6f8; }
+  .register-card { background:#fff; padding:30px; border-radius:16px; box-shadow:0 10px 25px rgba(0,0,0,.08); width:400px; }
+  .register-card h2 { color:#2c3e50; margin-bottom:10px; }
+  .register-card .desc { color:#7f8c8d; font-size:14px; margin-bottom:25px; line-height:1.5; }
+  .register-card .loc-box { background:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #eee; margin-bottom:15px; }
+  .register-card .loc-acquired { display:flex; align-items:center; gap:8px; color:#2ecc71; font-weight:bold; font-size:14px; }
+  .register-card .btn { width:100%; }
+  .register-card .label { color:#34495e; }
+
+  /* ─── Scene 4: Disaster Modal ─── */
+  #scene-disaster { justify-content:center; align-items:center; }
+  .modal-overlay { position:absolute; inset:0; background:rgba(0,0,0,.7); display:flex; justify-content:center; align-items:center; z-index:1000; }
+  .modal-card { background:#161b22; padding:30px; border-radius:12px; width:400px; border:1px solid #30363d; }
+  .modal-card h2 { color:#e74c3c; margin-bottom:10px; }
+  .modal-card .desc { color:#8b949e; font-size:13px; margin-bottom:20px; }
+  .modal-card .form-group { margin-bottom:15px; }
+  .modal-card .select { width:100%; padding:12px; background:#0D1117; border:1px solid #444; color:#fff; border-radius:6px; font-size:15px; }
+
+  /* ─── Scene 5: Processing Pipeline ─── */
+  #scene-processing { flex-direction:column; justify-content:center; align-items:center; }
+  .pipeline-container { width:80%; max-width:900px; }
+  .pipeline-container h2 { text-align:center; color:#3498db; margin-bottom:40px; font-size:24px; }
+  .pipeline-step { display:flex; align-items:center; gap:20px; margin-bottom:20px; opacity:.3; transition:all .5s; }
+  .pipeline-step.active { opacity:1; }
+  .pipeline-step.done { opacity:1; }
+  .pipeline-icon { width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px; border:2px solid #444; flex-shrink:0; background:#161b22; }
+  .pipeline-step.active .pipeline-icon { border-color:#3498db; background:#3498db; color:#fff; animation:spin 1s linear infinite; }
+  .pipeline-step.done .pipeline-icon { border-color:#2ecc71; background:#2ecc71; color:#fff; }
+  @keyframes spin { from { transform:rotate(0); } to { transform:rotate(360deg); } }
+  .pipeline-content h3 { color:#fff; font-size:16px; margin-bottom:4px; }
+  .pipeline-content p { color:#8b949e; font-size:13px; }
+  .pipeline-line { width:2px; height:30px; background:#333; margin-left:23px; }
+
+  /* ─── Scene 6: Payout Success ─── */
+  #scene-payout { justify-content:center; align-items:center; flex-direction:column; }
+  .payout-card { background:#161b22; padding:40px; border-radius:16px; width:500px; border:1px solid #30363d; text-align:center; }
+  .payout-icon { width:80px; height:80px; margin:0 auto 20px; border-radius:50%; background:#2ecc71; display:flex; align-items:center; justify-content:center; font-size:40px; }
+  .payout-card h2 { color:#2ecc71; margin-bottom:15px; }
+  .payout-detail { background:#0D1117; padding:20px; border-radius:8px; margin:20px 0; text-align:left; font-family:monospace; font-size:13px; line-height:2; color:#c9d1d9; }
+  .payout-detail .key { color:#8b949e; }
+  .payout-detail .val { color:#2ecc71; }
+
+  /* ─── Scene 7: SMS ─── */
+  #scene-sms { justify-content:center; align-items:center; }
+  .phone-mockup { width:320px; background:#1a1a1a; border-radius:24px; border:8px solid #2a2a2a; overflow:hidden; box-shadow:0 20px 40px rgba(0,0,0,.4); }
+  .phone-screen { background:#000; height:500px; padding:20px; display:flex; flex-direction:column; gap:15px; }
+  .phone-status { color:#666; font-size:10px; display:flex; justify-content:space-between; }
+  .sms-message { background:#1a1a1a; border-radius:12px; padding:15px; font-size:13px; color:#e6edf3; line-height:1.5; border-left:4px solid #e74c3c; animation:slideIn .5s; }
+  .sms-message .header { display:flex; justify-content:space-between; color:#8b949e; font-size:11px; margin-bottom:8px; }
+
+  /* ─── Scene 8: AI Report ─── */
+  #scene-ai { justify-content:center; align-items:center; }
+  .ai-card { background:#161b22; padding:30px; border-radius:12px; width:600px; border:1px solid #30363d; }
+  .ai-card .header { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
+  .ai-card .header .icon { width:40px; height:40px; border-radius:8px; background:#3498db; display:flex; align-items:center; justify-content:center; font-size:20px; }
+  .ai-card .header h2 { color:#fff; font-size:18px; }
+  .ai-card .header .sub { color:#8b949e; font-size:12px; }
+  .ai-report-body { background:#0D1117; padding:20px; border-radius:8px; font-size:13px; color:#b1bac4; line-height:1.8; }
+  .ai-report-body .highlight { color:#2ecc71; font-weight:bold; }
+  .ai-report-body .warning { color:#f39c12; font-weight:bold; }
+
+  /* ─── Auto-advance controls ─── */
+  #autoControls { position:fixed; bottom:12px; left:16px; z-index:9999; display:flex; gap:8px; align-items:center; }
+  #autoControls .badge { background:#21262d; color:#8b949e; font-size:11px; padding:4px 10px; border-radius:4px; font-family:monospace; border:1px solid #30363d; }
+  #autoControls .btn-sm { padding:4px 12px; font-size:11px; border-radius:4px; border:1px solid #30363d; background:#21262d; color:#c9d1d9; cursor:pointer; }
+  #autoControls .btn-sm:hover { background:#30363d; }
+
+  /* ─── Toast ─── */
+  .toast { position:fixed; top:50px; right:20px; background:#2ecc71; color:#fff; padding:15px 20px; border-radius:8px; font-size:14px; z-index:5000; box-shadow:0 4px 12px rgba(0,0,0,.3); animation:toastIn .3s; max-width:300px; }
+  .toast .title { font-weight:bold; margin-bottom:4px; }
+  @keyframes toastIn { from { transform:translateX(120%); } to { transform:translateX(0); } }
+
+  /* ─── Pie chart mock ─── */
+  .pie-mock { width:120px; height:120px; margin:0 auto; border-radius:50%; background:conic-gradient(#2ecc71 0% 70%, #e74c3c 70% 100%); position:relative; }
+  .pie-mock::after { content:''; position:absolute; inset:30px; border-radius:50%; background:#21262d; }
+  .pie-mock .center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:1; }
+  .pie-mock .center .pct { font-size:18px; font-weight:bold; color:#2ecc71; }
+  .pie-mock .center .lbl { font-size:10px; color:#8b949e; }
+
+  /* ─── Bar chart mock ─── */
+  .bar-mock { display:flex; gap:20px; align-items:flex-end; height:100px; justify-content:center; padding:10px 0; }
+  .bar-mock .bar { width:30px; border-radius:4px 4px 0 0; background:#f39c12; position:relative; transition:height .5s; }
+  .bar-mock .bar .val { position:absolute; top:-18px; left:50%; transform:translateX(-50%); font-size:11px; color:#8b949e; }
+  .bar-mock .bar .name { position:absolute; bottom:-20px; left:50%; transform:translateX(-50%); font-size:10px; color:#8b949e; }
+</style>
+</head>
+<body>
+
+<!-- Step indicator -->
+<div id="stepBar"></div>
+<div id="stepLabel"></div>
+
+<!-- ═══ Scene 1: Login ═══ -->
+<div class="scene active" id="scene-login">
+  <div class="login-card">
+    <div class="logo" style="justify-content:center; margin-bottom:30px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+      <h1>AgriGuard</h1>
+    </div>
+    <h2>Agri-Guard Login</h2>
+    <form onsubmit="return false;">
+      <div class="form-group">
+        <label class="label">Username</label>
+        <input type="text" class="input" id="login-user" value="admin" readonly>
+      </div>
+      <div class="form-group">
+        <label class="label">Password</label>
+        <input type="password" class="input" id="login-pass" value="agri1234" readonly>
+      </div>
+      <button class="btn btn-blue" onclick="loginSuccess()" style="width:100%; margin-top:10px;">Login</button>
+    </form>
+    <div class="footer">
+      <span style="color:#aaa;">Don't have an account? </span>
+      <a href="#" onclick="goScene('scene-register'); return false;">Register</a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Scene 2: Dashboard ═══ -->
+<div class="scene" id="scene-dashboard">
+  <div class="sidebar">
+    <div class="top-row">
+      <button class="btn btn-red" style="padding:4px 10px; font-size:12px;">Logout</button>
+      <select class="lang-select">
+        <option value="en">EN</option>
+        <option value="fr">FR</option>
+        <option value="sw">SW</option>
+      </select>
+    </div>
+    <div class="logo" style="margin-bottom:20px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" style="width:32px; height:32px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+      <h1>AgriGuard</h1>
+    </div>
+    <p class="desc">Space-grade crop insurance for smallholder farmers. Satellite triggers, blockchain payouts, zero paperwork.</p>
+
+    <!-- Living Atlas Layers -->
+    <div class="layer-panel">
+      <h3><span style="color:#3498db;">≡</span> Living Atlas Data Layers</h3>
+      <div class="layer-item"><label><input type="checkbox" checked> Recent Earthquakes (USGS)</label><div class="legend">↳ Orange Circles</div></div>
+      <div class="layer-item"><label><input type="checkbox" checked> Active Hurricanes</label><div class="legend">↳ Hurricane Icons</div></div>
+      <div class="layer-item"><label><input type="checkbox"> VIIRS Thermal Hotspots</label><div class="legend">↳ Red/Yellow Pixels</div></div>
+      <div class="layer-item"><label><input type="checkbox"> Global Wind Speed/Dir</label><div class="legend">↳ Wind Barbs</div></div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div style="color:#3498db; font-size:20px; margin-bottom:4px;"> tractor</div>
+        <div class="num" id="stat-farms">8</div>
+        <div class="lbl">Monitored Farms</div>
+      </div>
+      <div class="stat-card">
+        <div style="color:#e74c3c; font-size:20px; margin-bottom:4px;"> activity</div>
+        <div class="num" id="stat-alerts">0</div>
+        <div class="lbl">Active Alerts</div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="chart-section">
+      <h3>Analytics</h3>
+      <div style="margin-bottom:25px;">
+        <h4 style="color:#8b949e; font-size:12px; text-align:center; margin-bottom:10px;">Farm Safety Ratio</h4>
+        <div class="pie-mock">
+          <div class="center">
+            <div class="pct" id="pie-pct">100%</div>
+            <div class="lbl">Safe</div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-bottom:30px;">
+        <h4 style="color:#8b949e; font-size:12px; text-align:center; margin-bottom:10px;">Disaster Types</h4>
+        <div class="bar-mock">
+          <div class="bar" style="height:40px;"><div class="val">1</div><div class="name">Flood</div></div>
+          <div class="bar" style="height:20px;"><div class="val">0</div><div class="name">Drought</div></div>
+          <div class="bar" style="height:15px;"><div class="val">0</div><div class="name">Heatwave</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alert Feed -->
+    <div class="alert-feed">
+      <h3 style="color:#fff; font-size:16px; border-bottom:1px solid #30363d; padding-bottom:10px; margin-bottom:15px;">Live Alert Feed</h3>
+      <div id="alert-list">
+        <div style="color:#6e7681; font-size:13px; text-align:center; margin-top:20px;">No alerts yet. All farms safe.</div>
+      </div>
+    </div>
+
+    <button class="btn btn-blue" style="margin-top:20px;" onclick="triggerDisasterDemo()">
+      Trigger Disaster Event
+    </button>
+  </div>
+
+  <!-- Map Area -->
+  <div class="map-area" id="map-area">
+    <div class="map-grid"></div>
+    <div class="map-glow"></div>
+
+    <!-- Farm pins (positioned as percentages of map area) -->
+    <div class="farm-pin safe" style="left:25%; top:30%;" data-name="Green Valley Farm" data-phone="+254712345678">
+      <div class="tooltip">Green Valley Farm · Safe</div>
+    </div>
+    <div class="farm-pin safe" style="left:45%; top:25%;" data-name="Sunrise Acres" data-phone="+254723456789">
+      <div class="tooltip">Sunrise Acres · Safe</div>
+    </div>
+    <div class="farm-pin safe" style="left:55%; top:40%;" data-name="Nairobi Fields" data-phone="+254734567890">
+      <div class="tooltip">Nairobi Fields · Safe</div>
+    </div>
+    <div class="farm-pin safe" style="left:35%; top:50%;" data-name="Rift Valley Co-op" data-phone="+254745678901">
+      <div class="tooltip">Rift Valley Co-op · Safe</div>
+    </div>
+    <div class="farm-pin safe" style="left:65%; top:55%;" data-name="Lake Basin Farm" data-phone="+254756789012">
+      <div class="tooltip">Lake Basin Farm · Safe</div>
+    </div>
+    <div class="farm-pin safe" style="left:70%; top:35%;" data-name="Highland Estates" data-phone="+254767890123">
+      <div class="tooltip">Highland Estates · Safe</div>
+    </div>
+    <div class="farm-pin safe" style="left:30%; top:65%;" data-name="Savanna Plains" data-phone="+254778901234">
+      <div class="tooltip">Savanna Plains · Safe</div>
+    </div>
+    <div class="farm-pin safe" style="left:50%; top:60%;" data-name="Tana River Farm" data-phone="+254789012345">
+      <div class="tooltip">Tana River Farm · Safe</div>
+    </div>
+  </div>
+
+  <!-- Disaster zone (hidden initially) -->
+  <div id="disaster-zone-container"></div>
+</div>
+
+<!-- ═══ Scene 3: Register Farm ═══ -->
+<div class="scene" id="scene-register">
+  <div style="position:absolute; top:20px; right:20px;">
+    <select class="lang-select" style="padding:8px; border-radius:8px; border:1px solid #ddd; background:#fff; color:#2c3e50;">
+      <option>English</option>
+      <option>Francais</option>
+      <option>Kiswahili</option>
+    </select>
+  </div>
+  <div class="register-card">
+    <div class="logo" style="margin-bottom:30px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" style="width:40px; height:40px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+      <h1 style="font-size:28px; color:#2c3e50;">AgriGuard</h1>
+    </div>
+    <h2 style="color:#2c3e50;">Farmer Portal</h2>
+    <p class="desc">Register your farm to receive automatic satellite-triggered insurance. No paperwork, no agent visits.</p>
+    <form onsubmit="return false;">
+      <div style="margin-bottom:20px;">
+        <label class="label">Farm Name</label>
+        <input type="text" class="input" placeholder="e.g. Green Valley Farm" value="Green Valley Farm" style="border-color:#ddd; color:#2c3e50; background:#fff;">
+      </div>
+      <div style="margin-bottom:20px;">
+        <label class="label">Phone Number (for SMS alerts)</label>
+        <input type="tel" class="input" placeholder="+254..." value="+254712345678" style="border-color:#ddd; color:#2c3e50; background:#fff;">
+      </div>
+      <div class="loc-box">
+        <label class="label">Farm Location (GNSS)</label>
+        <div class="loc-acquired" id="loc-status">
+          <span style="font-size:18px;">✓</span> Location acquired: -1.2864, 36.8172 (Nairobi)
+        </div>
+      </div>
+      <button class="btn btn-green" onclick="registerSuccess()">Enable Protection</button>
+    </form>
+  </div>
+</div>
+
+<!-- ═══ Scene 4: Disaster Modal ═══ -->
+<div class="scene" id="scene-disaster">
+  <div class="modal-overlay">
+    <div class="modal-card">
+      <h2>⚠️ Configure Disaster Event</h2>
+      <p class="desc">Draw a polygon on the map to define the affected area. The system will automatically check which farms are inside.</p>
+      <form onsubmit="return false;">
+        <div class="form-group">
+          <label class="label">Event Title</label>
+          <input type="text" class="input" value="Nairobi Flash Floods" id="evt-title">
+        </div>
+        <div class="form-group">
+          <label class="label">Event Type</label>
+          <select class="select" id="evt-type">
+            <option value="FLOOD" selected>🌊 Flood</option>
+            <option value="DROUGHT">☀️ Drought</option>
+            <option value="HEATWAVE">🔥 Heatwave</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="label">Severity Level (1-3)</label>
+          <input type="number" class="input" min="1" max="3" value="3" id="evt-severity">
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:15px;">
+          <button class="btn btn-ghost" onclick="goScene('scene-dashboard')">Cancel</button>
+          <button class="btn btn-red" onclick="startPipeline()">Trigger Smart Contract</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Scene 5: Processing Pipeline ═══ -->
+<div class="scene" id="scene-processing">
+  <div class="pipeline-container">
+    <h2>⚙️ Parametric Insurance Pipeline</h2>
+
+    <div class="pipeline-step" id="ps1">
+      <div class="pipeline-icon">📡</div>
+      <div class="pipeline-content">
+        <h3>Step 1: NASA EONET Event Detected</h3>
+        <p>Flood event "Nairobi Flash Floods" ingested from NASA EONET API · PostGIS Polygon stored</p>
+      </div>
+    </div>
+    <div class="pipeline-line"></div>
+
+    <div class="pipeline-step" id="ps2">
+      <div class="pipeline-icon">🗄️</div>
+      <div class="pipeline-content">
+        <h3>Step 2: PostGIS Spatial Query</h3>
+        <p><code>Farm.objects.filter(location__intersects=event.affected_area)</code> · 3 farms found in danger zone</p>
+      </div>
+    </div>
+    <div class="pipeline-line"></div>
+
+    <div class="pipeline-step" id="ps3">
+      <div class="pipeline-icon">🔗</div>
+      <div class="pipeline-content">
+        <h3>Step 3: Web3 Smart Contract Payout</h3>
+        <p>Calculating payout: $500 × severity(3) = $1,500 USDC per farm · Broadcasting transaction</p>
+      </div>
+    </div>
+    <div class="pipeline-line"></div>
+
+    <div class="pipeline-step" id="ps4">
+      <div class="pipeline-icon">🤖</div>
+      <div class="pipeline-content">
+        <h3>Step 4: AI Damage Assessment</h3>
+        <p>GPT-3.5 generating crop loss estimation and recovery plan based on satellite imagery</p>
+      </div>
+    </div>
+    <div class="pipeline-line"></div>
+
+    <div class="pipeline-step" id="ps5">
+      <div class="pipeline-icon">📱</div>
+      <div class="pipeline-content">
+        <h3>Step 5: SMS Notification (Twilio)</h3>
+        <p>Sending payout confirmation to 3 affected farmers via SMS</p>
+      </div>
+    </div>
+    <div class="pipeline-line"></div>
+
+    <div class="pipeline-step" id="ps6">
+      <div class="pipeline-icon">📊</div>
+      <div class="pipeline-content">
+        <h3>Step 6: WebSocket Real-time Push</h3>
+        <p>Frontend dashboard updated via Django Channels WebSocket connection</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Scene 6: Payout Success ═══ -->
+<div class="scene" id="scene-payout">
+  <div class="payout-card">
+    <div class="payout-icon">✓</div>
+    <h2>Smart Contract Executed!</h2>
+    <p style="color:#8b949e; font-size:14px;">3 farms received automatic USDC payouts on-chain</p>
+    <div class="payout-detail">
+      <span class="key">Farm:</span> <span class="val">Green Valley Farm</span><br>
+      <span class="key">Payout:</span> <span class="val">$1,500.00 USDC</span><br>
+      <span class="key">TxHash:</span> <span class="val" id="txhash1">0x7f3a...8e2c</span><br>
+      <span class="key">Block:</span> <span class="val">#18,923,451</span><br>
+      <span class="key">Gas:</span> <span class="val">21,000</span><br>
+      <span class="key">Status:</span> <span class="val">CONFIRMED ✓</span><br>
+      <hr style="border-color:#30363d; margin:12px 0;">
+      <span class="key">Farm:</span> <span class="val">Rift Valley Co-op</span><br>
+      <span class="key">Payout:</span> <span class="val">$1,500.00 USDC</span><br>
+      <span class="key">TxHash:</span> <span class="val" id="txhash2">0xa2b9...4f1d</span><br>
+      <span class="key">Status:</span> <span class="val">CONFIRMED ✓</span><br>
+      <hr style="border-color:#30363d; margin:12px 0;">
+      <span class="key">Farm:</span> <span class="val">Tana River Farm</span><br>
+      <span class="key">Payout:</span> <span class="val">$1,500.00 USDC</span><br>
+      <span class="key">TxHash:</span> <span class="val" id="txhash3">0x9c4e...7a3b</span><br>
+      <span class="key">Status:</span> <span class="val">CONFIRMED ✓</span>
+    </div>
+    <p style="color:#2ecc71; font-size:18px; font-weight:bold;">Total Payout: $4,500.00 USDC</p>
+    <p style="color:#8b949e; font-size:12px; margin-top:8px;">Processing time: 3 minutes 12 seconds (vs 12 weeks traditional)</p>
+  </div>
+</div>
+
+<!-- ═══ Scene 7: SMS Notification ═══ -->
+<div class="scene" id="scene-sms">
+  <div class="phone-mockup">
+    <div class="phone-screen">
+      <div class="phone-status">
+        <span>9:41 AM</span>
+        <span>📶 4G · 100%</span>
+      </div>
+      <div style="color:#8b949e; font-size:11px; text-transform:uppercase; letter-spacing:1px;">Messages</div>
+      <div class="sms-message">
+        <div class="header"><span>AgriGuard</span><span>9:41 AM</span></div>
+        URGENT: Flood alert for 'Green Valley Farm'. Smart contract triggered. Payout: $1500.0 USDC. TxHash: 0x7f3a8e2c...<br><br>
+        Your insurance payout has been sent to your wallet. No action required.
+      </div>
+      <div class="sms-message" style="animation-delay:.5s;">
+        <div class="header"><span>AgriGuard AI</span><span>9:42 AM</span></div>
+        AI Damage Report: Estimated crop loss 75%. Recommended: immediate drainage and soil nutrient check. Recovery forecast: 3-6 months.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Scene 8: AI Damage Report ═══ -->
+<div class="scene" id="scene-ai">
+  <div class="ai-card">
+    <div class="header">
+      <div class="icon">🤖</div>
+      <div>
+        <h2>AI Damage Assessment Report</h2>
+        <div class="sub">Generated by GPT-3.5 · Green Valley Farm · Nairobi Flash Floods</div>
+      </div>
+    </div>
+    <div class="ai-report-body">
+      <strong>🤖 [AI Analysis]</strong><br><br>
+      Based on satellite data analysis for <span class="highlight">Flood</span> event "Nairobi Flash Floods" hitting Green Valley Farm:<br><br>
+      <span class="warning">• Estimated Crop Loss: 75%</span><br>
+      (Severity Level 3 of 3 — catastrophic flooding detected in farm polygon)<br><br>
+      <span class="highlight">• Recommended Actions:</span><br>
+      &nbsp;&nbsp;- Immediate drainage and floodwater control<br>
+      &nbsp;&nbsp;- Soil nutrient restoration (nitrogen/phosphorus loss expected)<br>
+      &nbsp;&nbsp;- Replant fast-maturing crops (e.g., beans, 60-day cycle)<br><br>
+      <span class="highlight">• Recovery Forecast:</span> 3-6 months based on historical recovery metrics for Rift Valley region<br><br>
+      <span class="highlight">• Payout Status:</span> $1,500 USDC has been transferred to farmer's wallet via smart contract. TxHash: 0x7f3a8e2c...
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Auto Controls ═══ -->
+<div id="autoControls">
+  <span class="badge" id="demo-status">DEMO READY</span>
+  <button class="btn-sm" onclick="startAutoDemo()">▶ Start Auto-Demo</button>
+  <button class="btn-sm" onclick="pauseDemo()">⏸ Pause</button>
+  <button class="btn-sm" onclick="resetDemo()">↺ Reset</button>
+</div>
+
+<script>
+// ─── Scene Management ───
+const SCENES = [
+  { id:'scene-login', name:'Login', step:1 },
+  { id:'scene-dashboard', name:'Dashboard', step:2 },
+  { id:'scene-disaster', name:'Draw Disaster', step:3 },
+  { id:'scene-processing', name:'Pipeline', step:4 },
+  { id:'scene-payout', name:'Payout', step:5 },
+  { id:'scene-sms', name:'SMS', step:6 },
+  { id:'scene-ai', name:'AI Report', step:7 },
+];
+
+const DEMO_FLOW = [
+  { scene:'scene-login', dur:2000, action:'login' },
+  { scene:'scene-dashboard', dur:3000, action:'show_dashboard' },
+  { scene:'scene-disaster', dur:2500, action:'show_disaster' },
+  { scene:'scene-processing', dur:6000, action:'run_pipeline' },
+  { scene:'scene-dashboard', dur:2000, action:'update_dashboard' },
+  { scene:'scene-payout', dur:3500, action:'show_payout' },
+  { scene:'scene-sms', dur:3000, action:'show_sms' },
+  { scene:'scene-ai', dur:3500, action:'show_ai' },
+  { scene:'scene-dashboard', dur:3000, action:'final_dashboard' },
+];
+
+let currentIdx = 0;
+let autoTimer = null;
+let isRunning = false;
+
+function buildStepBar() {
+  const bar = document.getElementById('stepBar');
+  bar.innerHTML = '';
+  DEMO_FLOW.forEach((_, i) => {
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    seg.id = 'seg-' + i;
+    bar.appendChild(seg);
+  });
+}
+
+function goScene(sceneId) {
+  document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById(sceneId);
+  if (el) el.classList.add('active');
+  // update step bar
+  document.querySelectorAll('.seg').forEach(s => { s.classList.remove('active'); s.classList.remove('done'); });
+  for (let i = 0; i < currentIdx; i++) document.getElementById('seg-'+i)?.classList.add('done');
+  document.getElementById('seg-'+currentIdx)?.classList.add('active');
+  // update label
+  const label = document.getElementById('stepLabel');
+  if (DEMO_FLOW[currentIdx]) label.textContent = `Step ${currentIdx+1}/${DEMO_FLOW.length}: ${DEMO_FLOW[currentIdx].scene}`;
+}
+
+// ─── Demo Actions ───
+function loginSuccess() {
+  showToast('Login successful!');
+  currentIdx = 1;
+  goScene('scene-dashboard');
+  if (isRunning) scheduleNext();
+}
+
+function registerSuccess() {
+  showToast('Farm registered! GNSS coordinates saved.');
+  currentIdx = 1;
+  goScene('scene-dashboard');
+  if (isRunning) scheduleNext();
+}
+
+function triggerDisasterDemo() {
+  currentIdx = 2;
+  goScene('scene-disaster');
+  if (isRunning) scheduleNext();
+}
+
+function startPipeline() {
+  currentIdx = 3;
+  goScene('scene-processing');
+  runPipelineSteps();
+}
+
+function runPipelineSteps() {
+  const steps = ['ps1','ps2','ps3','ps4','ps5','ps6'];
+  let si = 0;
+  function nextStep() {
+    if (si > 0) document.getElementById(steps[si-1]).classList.replace('active','done');
+    if (si < steps.length) {
+      document.getElementById(steps[si]).classList.add('active');
+      si++;
+      setTimeout(nextStep, 900);
+    } else {
+      // pipeline done -> update dashboard -> payout
+      setTimeout(() => {
+        currentIdx = 4;
+        goScene('scene-dashboard');
+        updateDashboardWithAlerts();
+        setTimeout(() => {
+          currentIdx = 5;
+          goScene('scene-payout');
+          if (isRunning) scheduleNext();
+        }, 2000);
+      }, 500);
+    }
+  }
+  nextStep();
+}
+
+function updateDashboardWithAlerts() {
+  // Update stats
+  document.getElementById('stat-alerts').textContent = '3';
+  document.getElementById('stat-farms').textContent = '8';
+  // Update pie
+  document.querySelector('.pie-mock .pct').textContent = '63%';
+  document.querySelector('.pie-mock .lbl').textContent = '5/8 Safe';
+  document.querySelector('.pie-mock').style.background = 'conic-gradient(#2ecc71 0% 62.5%, #e74c3c 62.5% 100%)';
+  // Update bars
+  const bars = document.querySelectorAll('.bar-mock .bar');
+  bars[0].style.height = '60px'; bars[0].querySelector('.val').textContent = '1';
+  // Mark danger farms
+  const pins = document.querySelectorAll('.farm-pin');
+  [0, 3, 7].forEach(i => { if(pins[i]) pins[i].classList.replace('safe','danger'); });
+
+  // Show disaster zone on map
+  const zoneContainer = document.getElementById('disaster-zone-container');
+  if (zoneContainer) {
+    zoneContainer.innerHTML = '<div class="disaster-zone" style="left:20%; top:20%; width:45%; height:55%; position:absolute;"></div>';
+  }
+
+  // Add alert items
+  const alertList = document.getElementById('alert-list');
+  alertList.innerHTML = '';
+
+  const alerts = [
+    { farm:'Green Valley Farm', event:'Nairobi Flash Floods', payout:'1500.00', tx:'0x7f3a8e2c', severity:3, time:'9:41 AM' },
+    { farm:'Rift Valley Co-op', event:'Nairobi Flash Floods', payout:'1500.00', tx:'0xa2b94f1d', severity:3, time:'9:41 AM' },
+    { farm:'Tana River Farm', event:'Nairobi Flash Floods', payout:'1500.00', tx:'0x9c4e7a3b', severity:3, time:'9:41 AM' },
+  ];
+
+  alerts.forEach((a, i) => {
+    const div = document.createElement('div');
+    div.className = 'alert-item';
+    div.style.animationDelay = (i * 0.3) + 's';
+    div.innerHTML = `
+      <div class="farm-name">${a.farm}</div>
+      <div class="event-title">Event: ${a.event}</div>
+      <div class="payout">💰 Payout: $${a.payout} USDC<br>🔗 Tx: ${a.tx}...</div>
+      <div class="ai-report">🤖 [AI Simulation Mode]
+Based on satellite data analysis for Flood '${a.event}' hitting ${a.farm}:
+- Estimated Crop Loss: ${a.severity * 25}%
+- Recommended Actions: Immediate irrigation control and soil nutrient check.
+- Recovery Forecast: 3-6 months based on historical recovery metrics.</div>
+      <div class="meta"><span>${a.time}</span><span class="status-paid">PAID</span></div>
+    `;
+    alertList.appendChild(div);
+  });
+}
+
+function scheduleNext() {
+  if (autoTimer) clearTimeout(autoTimer);
+  const current = DEMO_FLOW[currentIdx];
+  if (!current) { isRunning = false; document.getElementById('demo-status').textContent='DEMO COMPLETE'; return; }
+  autoTimer = setTimeout(() => {
+    currentIdx++;
+    if (currentIdx >= DEMO_FLOW.length) {
+      isRunning = false;
+      document.getElementById('demo-status').textContent = 'DEMO COMPLETE';
+      return;
+    }
+    const next = DEMO_FLOW[currentIdx];
+    goScene(next.scene);
+    // execute action
+    if (next.action === 'run_pipeline') runPipelineSteps();
+    else if (next.action === 'update_dashboard') updateDashboardWithAlerts();
+    else if (next.action === 'show_payout') {}
+    else scheduleNext();
+  }, current.dur);
+}
+
+function startAutoDemo() {
+  if (isRunning) return;
+  isRunning = true;
+  currentIdx = 0;
+  buildStepBar();
+  goScene('scene-login');
+  document.getElementById('demo-status').textContent = 'RUNNING...';
+  // auto-click login after 2s
+  setTimeout(() => {
+    if (isRunning) loginSuccess();
+  }, 2000);
+}
+
+function pauseDemo() {
+  isRunning = false;
+  if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+  document.getElementById('demo-status').textContent = 'PAUSED';
+}
+
+function resetDemo() {
+  pauseDemo();
+  currentIdx = 0;
+  isRunning = false;
+  // Reset dashboard
+  document.getElementById('stat-alerts').textContent = '0';
+  document.getElementById('stat-farms').textContent = '8';
+  document.querySelector('.pie-mock .pct').textContent = '100%';
+  document.querySelector('.pie-mock .lbl').textContent = 'Safe';
+  document.querySelector('.pie-mock').style.background = 'conic-gradient(#2ecc71 0% 100%, #e74c3c 100% 100%)';
+  document.querySelectorAll('.farm-pin').forEach(p => { p.classList.remove('danger'); p.classList.add('safe'); });
+  document.getElementById('alert-list').innerHTML = '<div style="color:#6e7681; font-size:13px; text-align:center; margin-top:20px;">No alerts yet. All farms safe.</div>';
+  const zc = document.getElementById('disaster-zone-container');
+  if (zc) zc.innerHTML = '';
+  // Reset pipeline
+  ['ps1','ps2','ps3','ps4','ps5','ps6'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.remove('active','done');
+  });
+  document.getElementById('demo-status').textContent = 'DEMO READY';
+  buildStepBar();
+  goScene('scene-login');
+}
+
+// ─── Toast ───
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = `<div class="title">✓ Success</div>${msg}`;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ─── Init ───
+buildStepBar();
+goScene('scene-login');
+
+// Expose for Playwright
+window.__demo = { startAutoDemo, pauseDemo, resetDemo, goScene, loginSuccess, triggerDisasterDemo, startPipeline, updateDashboardWithAlerts };
+</script>
+
+</body>
+</html>

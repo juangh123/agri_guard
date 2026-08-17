@@ -1,0 +1,49 @@
+/* Custom ArcGIS Sketch Toolbar Theme for Agri-Guard Dark Mode */
+
+/* Make the Sketch widget fit the dark theme better */
+.esri-sketch {
+    background-color: #2c3e50 !important;
+    border: 1px solid #34495e !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5) !important;
+    overflow: hidden;
+}
+
+/* Style the buttons inside the Sketch widget */
+.esri-sketch__button {
+    background-color: #2c3e50 !important;
+    color: #ecf0f1 !important;
+    border-right: 1px solid #34495e !important;
+    transition: all 0.2s ease !important;
+}
+
+.esri-sketch__button:hover {
+    background-color: #34495e !important;
+    color: #3498db !important;
+}
+
+.esri-sketch__button.esri-active {
+    background-color: #e74c3c !important;
+    color: #ffffff !important;
+}
+
+/* Remove the last border for a cleaner look */
+.esri-sketch__button:last-child {
+    border-right: none !important;
+}
+
+/* Tooltip/Popup dark theme adjustments */
+.esri-popup__main-container {
+    background-color: #1a1a1a !important;
+    color: #ecf0f1 !important;
+    border-radius: 8px !important;
+}
+
+.esri-popup__header, .esri-popup__footer {
+    background-color: #222 !important;
+}
+
+.esri-popup__title {
+    color: #3498db !important;
+    font-weight: bold !important;
+}

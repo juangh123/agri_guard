@@ -1,0 +1,115 @@
+# ─── Python ──────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# ─── Django ──────────────────────────────────────────────
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+static/admin/
+static/gis/
+static/rest_framework/
+celerybeat-schedule
+celerybeat-schedule.db
+
+# ─── Environment / Secrets (NEVER commit) ───────────────
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ─── Node / React (frontend/) ────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/build/
+frontend/.next/
+frontend/out/
+**/npm-debug.log*
+**/yarn-error.log*
+**/yarn-debug.log*
+**/pnpm-debug.log*
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# ─── IDE / Editor ────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# ─── Workbuddy workspace memory (private) ───────────────
+.workbuddy/
+
+# ─── Local demo artifacts (kept in docs/screenshots only) ─
+demo_screenshots/
+agri_guard_demo.html
+AgriGuard_Hackathon_Presentation.pptx
+agri_guard_hackathon_submission.md
+01_pitch_and_abstract.md
+02_architecture_diagram.md
+03_impact_metrics_and_market.md
+04_trigger_logic_and_code.md
+05_tech_stack.md
+create_pptx.js
+record_demo.js
+/package.json
+/package-lock.json
+node_modules/
+demo_report.html
+
+# ─── Testing / Coverage ──────────────────────────────────
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+coverage.xml
+*.cover
+.cache
+
+# ─── Docker / OS ─────────────────────────────────────────
+*.pid
+*.sock
+.docker/
+
+# ─── Misc ────────────────────────────────────────────────
+*.bak
+*.tmp
+*.swp
+.history/
+
+# Local dependency download cache
+tmp_lru/
+
+# Portable local PostgreSQL/PostGIS runtime used when Docker is unavailable
+.pgdata/
+.pg.log
+.postgis-pg15.zip
+.postgis-bundle/
+tmp_api_test.py
+tmp_register_test.py
+tmp_smoke_test.py

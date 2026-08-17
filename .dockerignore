@@ -1,0 +1,13 @@
+# 忽略前端生成的极大文件夹
+frontend/node_modules/
+frontend/dist/
+
+# 忽略 Python 缓存和虚拟环境
+__pycache__/
+*.pyc
+*.pyo
+.env
+venv/
+
+# 忽略 PostgreSQL 挂载卷
+postgres_data/

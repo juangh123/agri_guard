@@ -1,0 +1,2 @@
+-r requirements.txt
+postgresql-binaries==15.18.0
