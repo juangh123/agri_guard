@@ -1,12 +1,18 @@
 import { useEffect, useRef } from 'react';
 
-// WebSocket realtime is opt-in so deployments without a working Channels/Redis
-// endpoint do not emit avoidable browser connection warnings.
-const WS_BASE_URL = (import.meta.env.VITE_WS_BASE_URL || '').trim();
+// Derive the WebSocket endpoint from the API base URL by default. This keeps
+// Vercel/Render deployments working without requiring a separate VITE_WS_BASE_URL
+// variable, while still allowing an explicit override for custom setups.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+const configuredWsBase = (import.meta.env.VITE_WS_BASE_URL || '').trim();
+const WS_BASE_URL = configuredWsBase || (() => {
+  const wsBase = API_BASE_URL.replace(/^http/, 'ws').replace(/\/api\/?$/, '');
+  return `${wsBase}/ws/alerts/`;
+})();
 
 /**
  * useAlertsSocket — connects to the backend AlertConsumer at ws(s)://<host>/ws/alerts/
- * when VITE_WS_BASE_URL is explicitly configured.
+ * when a Channels endpoint is available.
  *
  * Backend wire format (core/consumers.py):
  *   - on connect:      { "message": "Connected to Alert WebSocket" }
