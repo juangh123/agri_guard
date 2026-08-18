@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import MapGL, { NavigationControl, Source, Layer } from 'react-map-gl/mapbox';
+import MapGL, { NavigationControl, Source, Layer } from 'react-map-gl/maplibre';
 import { MapPin, Layers, AlertTriangle, Loader2, Flame, Waves, Activity } from 'lucide-react';
 import { OPEN_MAP_STYLE, SATELLITE_MAP_STYLE } from '../utils/mapStyles';
 import {
@@ -10,11 +10,8 @@ import {
   flattenBounds,
 } from '../utils/arcGisLayers';
 
-// Mapbox token is optional. Without a valid public token we use the official
-// Esri Living Atlas satellite and OpenStreetMap raster styles (no token needed).
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
-const USE_MAPBOX = Boolean(MAPBOX_TOKEN) && MAPBOX_TOKEN.startsWith('pk.') && MAPBOX_TOKEN !== 'pk.public_free_placeholder';
-
+// AgriGuard uses MapLibre GL with official public raster and ArcGIS layers,
+// so no proprietary Mapbox token or API key is required.
 const LAYER_ICONS = {
   flame: Flame,
   waves: Waves,
@@ -100,11 +97,6 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
   const [layersError, setLayersError] = useState({});
 
   const activeStyle = useMemo(() => {
-    if (USE_MAPBOX) {
-      return mapMode === 'satellite'
-        ? 'mapbox://styles/mapbox/satellite-streets-v12'
-        : 'mapbox://styles/mapbox/dark-v11';
-    }
     return mapMode === 'satellite' ? SATELLITE_MAP_STYLE : OPEN_MAP_STYLE;
   }, [mapMode]);
 
@@ -336,7 +328,7 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
         onLoad={handleMapLoad}
         onMoveEnd={scheduleRefresh}
         mapStyle={activeStyle}
-        mapboxAccessToken={USE_MAPBOX ? MAPBOX_TOKEN : undefined}
+
         style={{ width: '100%', height: '100%' }}
       >
         <NavigationControl position="top-right" />
