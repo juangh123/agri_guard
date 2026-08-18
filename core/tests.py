@@ -232,8 +232,8 @@ class ProcessDisasterEventContractTests(TestCase):
         # 仿真模式：tasks 注入 water_level_m=3.0/duration_days=4/rain_anomaly=True
         return process_disaster_event(self.event.id, is_simulation=True)
 
-    @mock.patch('core.tasks.generate_ai_damage_report.delay')
-    @mock.patch('core.tasks.send_sms_alert.delay')
+    @mock.patch('core.tasks.generate_ai_damage_report')
+    @mock.patch('core.tasks.send_sms_alert')
     def test_process_event_creates_alert_and_claim(self, mock_sms_delay, mock_ai_delay):
         result = self._run()
 
@@ -251,8 +251,8 @@ class ProcessDisasterEventContractTests(TestCase):
         mock_sms_delay.assert_called_once()
         mock_ai_delay.assert_called_once_with(alert.id)
 
-    @mock.patch('core.tasks.generate_ai_damage_report.delay')
-    @mock.patch('core.tasks.send_sms_alert.delay')
+    @mock.patch('core.tasks.generate_ai_damage_report')
+    @mock.patch('core.tasks.send_sms_alert')
     def test_reprocessing_is_idempotent(self, mock_sms_delay, mock_ai_delay):
         self._run()
         self._run()  # 重复调用
@@ -272,8 +272,8 @@ class PayoutIntegrityTests(TestCase):
         self.farm = make_farm(make_user())
         self.event = make_event('FLOOD', severity_level=3)
 
-    @mock.patch('core.tasks.generate_ai_damage_report.delay')
-    @mock.patch('core.tasks.send_sms_alert.delay')
+    @mock.patch('core.tasks.generate_ai_damage_report')
+    @mock.patch('core.tasks.send_sms_alert')
     def test_claim_pending_without_web3_config(self, mock_sms_delay, mock_ai_delay):
         # 显式清空 Web3 环境变量，模拟未配置链上通道
         with mock.patch.dict(os.environ, {'WEB3_PROVIDER_URI': '', 'WEB3_PRIVATE_KEY': ''}):
@@ -291,8 +291,8 @@ class PayoutIntegrityTests(TestCase):
         self.assertIn('PENDING', timeline_statuses)
         self.assertNotIn('PAID', timeline_statuses)
 
-    @mock.patch('core.tasks.generate_ai_damage_report.delay')
-    @mock.patch('core.tasks.send_sms_alert.delay')
+    @mock.patch('core.tasks.generate_ai_damage_report')
+    @mock.patch('core.tasks.send_sms_alert')
     def test_claim_pending_when_wallet_missing(self, mock_sms_delay, mock_ai_delay):
         # 即使配置了 Web3，农场无钱包地址同样记 PENDING 且不发链上交易
         self.farm.wallet_address = None
@@ -306,3 +306,4 @@ class PayoutIntegrityTests(TestCase):
         claim = Claim.objects.get(farm=self.farm)
         self.assertEqual(claim.status, 'PENDING')
         self.assertIsNone(claim.tx_hash)
+

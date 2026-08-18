@@ -20,7 +20,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d agri_guard_db"
+          --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -62,7 +62,7 @@ jobs:
 
       - name: Wait for Postgres service and enable PostGIS in template1
         run: |
-          for i in {1..30}; do
+          for i in $(seq 1 30); do
             if pg_isready -h localhost -p 5432 -U postgres; then
               echo "Postgres is ready!"
               break
@@ -99,6 +99,6 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
       - name: Build production bundle
         run: npm run build
-
