@@ -1,6 +1,7 @@
 import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts';
 import { ShieldCheck, Clock, AlertTriangle, FileCheck, Activity } from 'lucide-react';
+import ReportQueryPanel from './ReportQueryPanel';
 
 const claimsData = [
   { month: 'Jan', claims: 120, payout: 45 },
@@ -29,9 +30,11 @@ const sourceData = [
 ];
 const COLORS = ['#EF4444', '#3B82F6', '#22C55E', '#F59E0B'];
 
-export default function DashboardOverview() {
+export default function DashboardOverview({ farms = [], alerts = [], claims = [] }) {
   return (
     <div className="space-y-6">
+      <ReportQueryPanel farms={farms} alerts={alerts} claims={claims} />
+
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard 

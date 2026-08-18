@@ -8,6 +8,7 @@ import DashboardOverview from '../components/DashboardOverview';
 import MapView from '../components/MapView';
 import ClaimTimeline from '../components/ClaimTimeline';
 import SmsMockup from '../components/SmsMockup';
+import SettingsPanel from '../components/SettingsPanel';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import useAlertsSocket from '../hooks/useAlertsSocket';
 
@@ -32,6 +33,7 @@ const Dashboard = () => {
   const [isSmsVisible, setIsSmsVisible] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
   const [role, setRole] = useState('insurance'); // 'farmer' or 'insurance'
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchData = useCallback(async () => {
     try {
@@ -101,6 +103,10 @@ const Dashboard = () => {
       fetchData();
     }
   }, [navigate, fetchData]);
+
+  const handleViewFullReport = () => {
+    setActiveTab('overview');
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -252,24 +258,28 @@ const Dashboard = () => {
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex relative">
               <Search className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input 
-                type="text" 
-                placeholder={t('search_placeholder')} 
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t('search_placeholder')}
                 className="pl-10 pr-4 py-2 bg-white/50 border border-white/60 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50 shadow-sm w-64 transition-all"
               />
             </div>
             <LanguageSwitcher />
-            <button className="relative p-2 rounded-full text-gray-500 hover:bg-white/60 transition-colors border border-transparent hover:border-white/60">
+            <button className="relative p-2 rounded-full text-gray-500 hover:bg-white/60 transition-colors border border-transparent hover:border-white/60" title={`${alerts.length} active alert${alerts.length === 1 ? '' : 's'}`}>
               <Bell className="h-5 w-5" />
-              <span className="absolute top-1 right-1 h-2.5 w-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+              {alerts.length > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1 rounded-full bg-red-500 text-[10px] font-bold text-white border-2 border-white flex items-center justify-center">{alerts.length}</span>}
             </button>
           </div>
         </header>
 
         {/* Main Area */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative z-10">
-          {activeTab === 'overview' && <DashboardOverview />}
+          {activeTab === 'overview' && <DashboardOverview farms={farms} alerts={alerts} claims={claims} />}
           
+          {activeTab === 'settings' && <SettingsPanel farms={farms} onSaved={fetchData} />}
+
           {activeTab === 'claims' && (
             <div className="flex gap-6 h-full flex-col lg:flex-row">
                 <div className="flex-1 glass-panel p-6 rounded-2xl shadow-lg border border-white/60">
@@ -351,9 +361,9 @@ const Dashboard = () => {
                          <p className="text-sm text-gray-700 bg-white/40 p-2 rounded-lg"><strong className="text-gray-900">{t('impact_label')}</strong> 4.2 Ha Maize Crop</p>
                        </div>
                        
-                       <button className="w-full py-3 bg-white text-red-600 font-bold rounded-xl text-sm border border-red-200 shadow-sm hover:bg-red-50 hover:border-red-300 transition-all flex items-center justify-center gap-2">
-                         <Search className="h-4 w-4" /> {t('view_full_report')}
-                       </button>
+                       <button onClick={handleViewFullReport} className="w-full py-3 bg-white text-red-600 font-bold rounded-xl text-sm border border-red-200 shadow-sm hover:bg-red-50 hover:border-red-300 transition-all flex items-center justify-center gap-2">
+                          <Search className="h-4 w-4" /> {t('view_full_report')}
+                        </button>
                      </div>
                    ) : (
                      <div className="glass-panel p-8 rounded-2xl border border-white/60 text-center flex flex-col items-center justify-center h-48 bg-white/40">

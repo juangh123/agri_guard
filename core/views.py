@@ -1,4 +1,5 @@
 import json
+import os
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
@@ -20,6 +21,107 @@ class FarmViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
+
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def settings(self, request):
+        """
+        Return integration status and the current user's farms for the Settings page.
+        """
+        farms = Farm.objects.filter(owner=request.user).order_by('id')
+
+        sms_configured = bool(
+            settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and settings.TWILIO_PHONE_NUMBER
+        )
+        web3_rpc = os.getenv('WEB3_PROVIDER_URI') or os.getenv('WEB3_RPC_URL')
+        web3_private_key = os.getenv('WEB3_PRIVATE_KEY') or os.getenv('ORACLE_PRIVATE_KEY')
+        web3_contract = os.getenv('SMART_CONTRACT_ADDRESS')
+        web3_configured = bool(web3_rpc and web3_private_key and web3_contract)
+
+        return Response({
+            'sms': {
+                'configured': sms_configured,
+                'provider': 'Twilio',
+                'from_number': settings.TWILIO_PHONE_NUMBER or '',
+                'mode': 'live' if sms_configured else 'mock',
+            },
+            'web3': {
+                'configured': web3_configured,
+                'rpc_present': bool(web3_rpc),
+                'private_key_present': bool(web3_private_key),
+                'contract_present': bool(web3_contract),
+                'mode': 'live' if web3_configured else 'mock',
+            },
+            'farms': [
+                {
+                    'id': farm.id,
+                    'name': farm.name,
+                    'phone_number': farm.phone_number,
+                    'wallet_address': farm.wallet_address or '',
+                    'crop_type': farm.crop_type,
+                }
+                for farm in farms
+            ],
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def test_sms(self, request, pk=None):
+        """
+        Send a test SMS using Twilio when configured, otherwise use the mock path.
+        No secrets are returned to the browser.
+        """
+        farm = self.get_object()
+        message = str(request.data.get('message') or f'AgriGuard test SMS for {farm.name}').strip()
+        if not message:
+            message = f'AgriGuard test SMS for {farm.name}'
+
+        from .tasks import send_sms_alert
+        try:
+            send_sms_alert(farm.phone_number, message)
+            return Response({
+                'ok': True,
+                'mode': 'live' if (settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and settings.TWILIO_PHONE_NUMBER) else 'mock',
+                'to': farm.phone_number,
+            })
+        except Exception as exc:
+            return Response({'ok': False, 'error': str(exc)}, status=500)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def test_wallet(self, request, pk=None):
+        """
+        Validate wallet/Web3 configuration without moving funds.
+        """
+        farm = self.get_object()
+        wallet_address = str(request.data.get('wallet_address') or farm.wallet_address or '').strip()
+        if not wallet_address:
+            return Response({'ok': False, 'error': 'No wallet address configured.'}, status=400)
+
+        web3_rpc = os.getenv('WEB3_PROVIDER_URI') or os.getenv('WEB3_RPC_URL')
+        web3_private_key = os.getenv('WEB3_PRIVATE_KEY') or os.getenv('ORACLE_PRIVATE_KEY')
+        web3_contract = os.getenv('SMART_CONTRACT_ADDRESS')
+
+        if not (web3_rpc and web3_private_key and web3_contract):
+            return Response({
+                'ok': True,
+                'mode': 'mock',
+                'wallet_address': wallet_address,
+                'detail': 'Wallet address accepted. Set WEB3_PROVIDER_URI, WEB3_PRIVATE_KEY and SMART_CONTRACT_ADDRESS for on-chain settlement.',
+            })
+
+        from core.services.blockchain_service import BlockchainService
+        try:
+            service = BlockchainService()
+            oracle_address = service.w3.eth.account.from_key(web3_private_key).address
+            return Response({
+                'ok': service.w3.is_connected(),
+                'mode': 'live',
+                'wallet_address': wallet_address,
+                'oracle_address': oracle_address,
+                'contract_address': web3_contract,
+                'rpc_connected': service.w3.is_connected(),
+            })
+        except Exception as exc:
+            return Response({'ok': False, 'mode': 'live_configured', 'error': str(exc)}, status=500)
 
     @action(detail=True, methods=['get'])
     def risk_status(self, request, pk=None):
