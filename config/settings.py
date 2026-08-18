@@ -65,7 +65,10 @@ ROOT_URLCONF = 'config.urls'
 
 ASGI_APPLICATION = 'config.asgi.application'
 
-if env('CHANNEL_LAYER_BACKEND', default='redis') == 'memory':
+CHANNEL_LAYER_BACKEND = env('CHANNEL_LAYER_BACKEND', default='')
+REDIS_URL = env('CELERY_BROKER_URL', default='')
+
+if CHANNEL_LAYER_BACKEND == 'memory' or (not CHANNEL_LAYER_BACKEND and not REDIS_URL):
     CHANNEL_LAYERS = {
         'default': {
             'BACKEND': 'channels.layers.InMemoryChannelLayer',
@@ -76,7 +79,7 @@ else:
         'default': {
             'BACKEND': 'channels_redis.core.RedisChannelLayer',
             'CONFIG': {
-                "hosts": [env('CELERY_BROKER_URL', default='redis://redis:6379/0')],
+                "hosts": [REDIS_URL or 'redis://redis:6379/0'],
             },
         },
     }
@@ -159,9 +162,9 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Celery Configuration Options
-CELERY_BROKER_URL = env('CELERY_BROKER_URL', default='redis://redis:6379/0')
-CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default='redis://redis:6379/0')
-CELERY_TASK_ALWAYS_EAGER = env('CELERY_TASK_ALWAYS_EAGER')
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default='')
+CELERY_TASK_ALWAYS_EAGER = env.bool('CELERY_TASK_ALWAYS_EAGER', default=not CELERY_BROKER_URL)
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
