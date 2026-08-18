@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import {
+  AlertTriangle,
   CheckCircle2,
   ExternalLink,
   Loader2,
@@ -30,8 +31,10 @@ function StatusBadge({ mode }) {
   );
 }
 
-export default function SettingsPanel({ farms: _farms, onSaved }) {
+export default function SettingsPanel({ farms = [], onSaved }) {
   const [integrationStatus, setIntegrationStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [selectedFarmId, setSelectedFarmId] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
@@ -39,34 +42,57 @@ export default function SettingsPanel({ farms: _farms, onSaved }) {
   const [testing, setTesting] = useState('');
   const [testResult, setTestResult] = useState(null);
 
-  const settingsFarms = integrationStatus?.farms || [];
-  const selectedFarm = settingsFarms.find((farm) => String(farm.id) === String(selectedFarmId)) || settingsFarms[0];
+  const dashboardFarmOptions = useMemo(
+    () => farms.map((farm) => ({
+      id: farm.id,
+      name: farm.properties?.name || farm.name || `Farm #${farm.id}`,
+      phone_number: farm.properties?.phone_number || '',
+      wallet_address: farm.properties?.wallet_address || '',
+      crop_type: farm.properties?.crop_type || '',
+    })),
+    [farms]
+  );
+  const settingsFarms = useMemo(
+    () => integrationStatus?.farms?.length ? integrationStatus.farms : dashboardFarmOptions,
+    [dashboardFarmOptions, integrationStatus]
+  );
+  const selectedFarm = useMemo(
+    () => settingsFarms.find((farm) => String(farm.id) === String(selectedFarmId)) || settingsFarms[0],
+    [selectedFarmId, settingsFarms]
+  );
 
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
     try {
       const response = await axios.get(`${API_BASE_URL}/farms/integration_status/`);
       setIntegrationStatus(response.data);
       const firstFarm = response.data?.farms?.[0];
-      if (firstFarm) {
-        setSelectedFarmId(firstFarm.id);
-        setPhoneNumber(firstFarm.phone_number || '');
-        setWalletAddress(firstFarm.wallet_address || '');
+      const currentSelectionStillExists = response.data?.farms?.some(
+        (farm) => String(farm.id) === String(selectedFarmId)
+      );
+      if (firstFarm && !currentSelectionStillExists) {
+        setSelectedFarmId(String(firstFarm.id));
       }
     } catch (error) {
       console.error('Failed to load settings:', error);
+      setLoadError(true);
       toast.error('Unable to load settings.');
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [selectedFarmId]);
 
   useEffect(() => {
     fetchSettings();
-  }, []);
+  }, [fetchSettings]);
 
   useEffect(() => {
-    if (!selectedFarm) return;
-    setPhoneNumber(selectedFarm.phone_number || '');
-    setWalletAddress(selectedFarm.wallet_address || '');
-  }, [selectedFarmId, integrationStatus, selectedFarm]);
+    const nextFarm = settingsFarms.find((farm) => String(farm.id) === String(selectedFarmId)) || settingsFarms[0];
+    if (!nextFarm) return;
+    setPhoneNumber(nextFarm.phone_number || '');
+    setWalletAddress(nextFarm.wallet_address || '');
+  }, [selectedFarmId, settingsFarms]);
 
   const handleSave = async () => {
     if (!selectedFarm) {
@@ -116,7 +142,11 @@ export default function SettingsPanel({ farms: _farms, onSaved }) {
         phone_number: phoneNumber,
       });
       setTestResult(response.data);
-      toast.success('SMS test completed.');
+      if (response.data.mode === 'live') {
+        toast.success('Live SMS sent.');
+      } else {
+        toast('SMS test completed in mock mode.', { icon: '📱' });
+      }
     } catch (error) {
       console.error('SMS test failed:', error);
       setTestResult({ ok: false, error: error.response?.data?.error || error.message });
@@ -135,7 +165,11 @@ export default function SettingsPanel({ farms: _farms, onSaved }) {
         wallet_address: walletAddress,
       });
       setTestResult(response.data);
-      toast.success('Wallet configuration test completed.');
+      if (response.data.mode === 'live') {
+        toast.success('Live wallet configuration verified.');
+      } else {
+        toast('Wallet address accepted in mock mode.', { icon: '🔗' });
+      }
     } catch (error) {
       console.error('Wallet test failed:', error);
       setTestResult({ ok: false, error: error.response?.data?.error || error.message });
@@ -147,6 +181,43 @@ export default function SettingsPanel({ farms: _farms, onSaved }) {
 
   const smsMode = integrationStatus?.sms?.mode || 'mock';
   const web3Mode = integrationStatus?.web3?.mode || 'mock';
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-gray-500">
+        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+        Loading integration settings...
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="glass-panel rounded-2xl p-6 text-center shadow-lg border border-white/60">
+        <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-amber-500" />
+        <p className="text-sm font-semibold text-gray-700">Unable to load settings.</p>
+        <button
+          type="button"
+          onClick={fetchSettings}
+          className="mt-4 rounded-xl border border-gray-200 bg-white/70 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-white"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (settingsFarms.length === 0) {
+    return (
+      <div className="glass-panel rounded-2xl p-8 text-center shadow-lg border border-white/60">
+        <ShieldCheck className="mx-auto mb-3 h-8 w-8 text-green-500" />
+        <h3 className="text-lg font-bold text-gray-900">No farms configured yet</h3>
+        <p className="mt-2 text-sm text-gray-500">
+          Register a farm first, then return here to configure SMS and payout details.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -164,8 +235,8 @@ export default function SettingsPanel({ farms: _farms, onSaved }) {
 
           <label className="mb-2 block text-sm font-semibold text-gray-700">Farm</label>
           <select
-            value={selectedFarm?.id || ''}
-            onChange={(event) => setSelectedFarmId(event.target.value)}
+            value={String(selectedFarm?.id || '')}
+            onChange={(event) => setSelectedFarmId(String(event.target.value))}
             className="mb-4 w-full rounded-xl border border-gray-200 bg-white/70 px-4 py-3 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-green-500/30"
           >
             {settingsFarms.map((farm) => (

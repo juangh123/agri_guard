@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+interface IERC20 {
+    function transfer(address to, uint256 value) external returns (bool);
+}
+
 contract AgriGuardParametric {
     address public oracleAdmin;
+    address public usdcToken;
 
     struct Policy {
         address farmerWallet;
@@ -17,8 +22,9 @@ contract AgriGuardParametric {
     event PolicyCreated(uint256 policyId, address farmer, uint256 amount, string geoHash);
     event PayoutTriggered(uint256 policyId, address farmer, uint256 amount, string disasterType);
 
-    constructor() {
+    constructor(address _usdcToken) {
         oracleAdmin = msg.sender;  // AgriGuard backend = trusted EO Oracle
+        usdcToken = _usdcToken;
     }
 
     function createPolicy(
@@ -26,6 +32,7 @@ contract AgriGuardParametric {
         uint256 _coverageAmount,
         string memory _geoHash
     ) public {
+        require(msg.sender == oracleAdmin, "Only EO Oracle can create policies");
         policyCount++;
         policies[policyCount] = Policy(_farmerWallet, _coverageAmount, _geoHash, true);
         emit PolicyCreated(policyCount, _farmerWallet, _coverageAmount, _geoHash);
@@ -36,9 +43,8 @@ contract AgriGuardParametric {
         Policy storage p = policies[_policyId];
         require(p.isActive, "Policy is not active");
 
+        require(IERC20(usdcToken).transfer(p.farmerWallet, p.coverageAmount), "USDC transfer failed");
         p.isActive = false;  // Prevent double payouts
-
-        payable(p.farmerWallet).transfer(p.coverageAmount);
 
         emit PayoutTriggered(_policyId, p.farmerWallet, p.coverageAmount, _disasterType);
     }

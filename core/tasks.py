@@ -17,10 +17,14 @@ from decimal import Decimal
 @shared_task
 def send_sms_alert(phone_number, message):
     """
-    发送短信到用户的手机号?    """
+    Send an SMS alert to the configured phone number.
+
+    Returns a structured result so callers can tell whether a real Twilio message
+    was sent or whether the safe mock fallback was used.
+    """
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Attempting to send SMS to {phone_number}...")
     print(f"Message: {message}")
-    
+
     if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and settings.TWILIO_PHONE_NUMBER:
         try:
             client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
@@ -30,16 +34,26 @@ def send_sms_alert(phone_number, message):
                 to=phone_number
             )
             print(f"Real SMS Sent Successfully via Twilio! Message SID: {twilio_msg.sid}")
-            return True
+            return {
+                'ok': True,
+                'mode': 'live',
+                'provider': 'Twilio',
+                'sid': twilio_msg.sid,
+            }
         except Exception as e:
             print(f"Failed to send real SMS via Twilio: {e}")
             print("Falling back to Mock SMS mode.")
     else:
         print("Twilio credentials not found in settings. Running in Mock SMS mode.")
-        
+
     time.sleep(1.5)
     print("Mock SMS Sent Successfully!")
-    return True
+    return {
+        'ok': True,
+        'mode': 'mock',
+        'provider': 'mock',
+        'detail': 'Twilio is not configured or the live send failed; mock SMS used.',
+    }
 
 @shared_task
 def generate_ai_damage_report(alert_id):

@@ -222,6 +222,40 @@ class FarmApiPermissionTests(TestCase):
         self.assertEqual(response.data['web3']['mode'], 'mock')
         self.assertEqual([item['id'] for item in response.data['farms']], [farm.id])
 
+    @mock.patch('core.tasks.send_sms_alert', return_value={
+        'ok': True, 'mode': 'live', 'provider': 'Twilio', 'sid': 'SM123',
+    })
+    def test_test_sms_uses_request_phone_number(self, mock_sms):
+        farm = make_farm(self.user)
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(
+            f'/api/farms/{farm.id}/test_sms/',
+            {'phone_number': '+254711000000'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['mode'], 'live')
+        self.assertEqual(response.data['to'], '+254711000000')
+        self.assertEqual(response.data['sid'], 'SM123')
+        mock_sms.assert_called_once_with('+254711000000', mock.ANY)
+
+    def test_test_wallet_returns_mock_when_web3_missing(self):
+        farm = make_farm(self.user)
+        self.client.force_authenticate(user=self.user)
+        with mock.patch.dict(os.environ, {
+            'WEB3_PROVIDER_URI': '',
+            'WEB3_PRIVATE_KEY': '',
+            'SMART_CONTRACT_ADDRESS': '',
+        }):
+            response = self.client.post(
+                f'/api/farms/{farm.id}/test_wallet/',
+                {'wallet_address': farm.wallet_address},
+                format='json',
+            )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['mode'], 'mock')
+        self.assertTrue(response.data['ok'])
+
     def test_authenticated_post_creates_farm_owned_by_current_user(self):
         self.client.force_authenticate(user=self.user)
         response = self.client.post('/api/farms/', self.farm_payload, format='json')

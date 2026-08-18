@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FileText, Filter, RefreshCw } from 'lucide-react';
 
 const EVENT_OPTIONS = ['FLOOD', 'WILDFIRE', 'DROUGHT', 'HEATWAVE'];
@@ -17,7 +17,13 @@ export default function ReportQueryPanel({ farms = [], alerts = [], claims = [] 
     startDate: '',
     endDate: '',
   });
-  const [hasRun, setHasRun] = useState(false);
+  const [hasRun, setHasRun] = useState(true);
+
+  // Automatically refresh the report as soon as real dashboard data arrives, so
+  // the page never looks unresponsive while waiting for the user to click.
+  useEffect(() => {
+    setHasRun(true);
+  }, [alerts.length, claims.length, farms.length]);
 
   const farmOptions = useMemo(
     () => farms.map((farm) => ({ id: farm.id, name: farm.properties?.name || farm.name || `Farm #${farm.id}` })),
@@ -30,7 +36,7 @@ export default function ReportQueryPanel({ farms = [], alerts = [], claims = [] 
 
   const resetReport = () => {
     setFilters({ farm: '', eventType: '', status: '', startDate: '', endDate: '' });
-    setHasRun(false);
+    setHasRun(true);
   };
 
   const report = useMemo(() => {
@@ -141,7 +147,7 @@ export default function ReportQueryPanel({ farms = [], alerts = [], claims = [] 
         <button
           type="button"
           onClick={runReport}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg hover:bg-blue-700"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
         >
           <Filter className="h-4 w-4" />
           Run Query
@@ -158,6 +164,7 @@ export default function ReportQueryPanel({ farms = [], alerts = [], claims = [] 
 
       {report && (
         <div className="mt-6 space-y-6">
+          <p className="text-xs text-gray-400">Report generated at {report.generatedAt.toLocaleString()}. Change filters and click Run Query to refresh.</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-2xl border border-white/60 bg-white/50 p-4">
               <p className="text-xs font-semibold text-gray-500">Matched Alerts</p>

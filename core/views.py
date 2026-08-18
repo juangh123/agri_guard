@@ -71,17 +71,24 @@ class FarmViewSet(viewsets.ModelViewSet):
         No secrets are returned to the browser.
         """
         farm = self.get_object()
+        phone_number = str(request.data.get('phone_number') or farm.phone_number).strip()
+        if not phone_number:
+            return Response({'ok': False, 'error': 'No phone number configured.'}, status=400)
+
         message = str(request.data.get('message') or f'AgriGuard test SMS for {farm.name}').strip()
         if not message:
             message = f'AgriGuard test SMS for {farm.name}'
 
         from .tasks import send_sms_alert
         try:
-            send_sms_alert(farm.phone_number, message)
+            sms_result = send_sms_alert(phone_number, message)
             return Response({
                 'ok': True,
-                'mode': 'live' if (settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and settings.TWILIO_PHONE_NUMBER) else 'mock',
-                'to': farm.phone_number,
+                'mode': sms_result.get('mode', 'mock'),
+                'to': phone_number,
+                'provider': sms_result.get('provider'),
+                'sid': sms_result.get('sid'),
+                'detail': sms_result.get('detail'),
             })
         except Exception as exc:
             return Response({'ok': False, 'error': str(exc)}, status=500)
@@ -112,6 +119,12 @@ class FarmViewSet(viewsets.ModelViewSet):
         try:
             service = BlockchainService()
             oracle_address = service.w3.eth.account.from_key(web3_private_key).address
+            if not service.w3.is_address(wallet_address):
+                return Response({
+                    'ok': False,
+                    'mode': 'live_configured',
+                    'error': 'Wallet address is not a valid Ethereum address.',
+                }, status=400)
             return Response({
                 'ok': service.w3.is_connected(),
                 'mode': 'live',
