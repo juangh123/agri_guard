@@ -4,7 +4,7 @@ import { MapPin, Layers, AlertTriangle, Loader2 } from 'lucide-react';
 import { OPEN_MAP_STYLE, SATELLITE_MAP_STYLE } from '../utils/mapStyles';
 
 // Mapbox token (optional: if absent, falls back to open raster tiles)
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || 'pk.public_free_placeholder';
 
 function featureCenter(feature) {
   const geometry = feature?.geometry;
@@ -156,7 +156,7 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
         {...viewState}
         onMove={evt => setViewState(evt.viewState)}
         mapStyle={activeStyle}
-        mapboxAccessToken={MAPBOX_TOKEN || undefined}
+        mapboxAccessToken={MAPBOX_TOKEN}
         style={{ width: '100%', height: '100%' }}
       >
         <NavigationControl position="top-right" />
@@ -198,3 +198,5 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
     </div>
   );
 }
+
+
