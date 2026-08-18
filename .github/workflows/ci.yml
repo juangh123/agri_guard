@@ -50,10 +50,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install GDAL system dependencies
+      - name: Install PostgreSQL client & GDAL dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gdal-bin libgdal-dev
+          sudo apt-get install -y postgresql-client gdal-bin libgdal-dev
 
       - name: Install Python dependencies
         run: |
@@ -61,9 +61,6 @@ jobs:
           pip install -r requirements.txt
 
       - name: Enable PostGIS in template1 for Django test database
-        # Django 创建测试库时默认以 template1 为模板；postgis 镜像只在
-        # 业务库中启用扩展，需先在 template1 中启用，否则迁移因缺
-        # geometry 类型而失败。
         run: |
           PGPASSWORD=postgres psql -h localhost -U postgres -d template1 \
             -c "CREATE EXTENSION IF NOT EXISTS postgis;"
@@ -85,7 +82,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
