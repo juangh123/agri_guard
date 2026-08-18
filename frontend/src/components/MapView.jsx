@@ -3,8 +3,10 @@ import MapGL, { NavigationControl, Source, Layer } from 'react-map-gl/mapbox';
 import { MapPin, Layers, AlertTriangle, Loader2 } from 'lucide-react';
 import { OPEN_MAP_STYLE, SATELLITE_MAP_STYLE } from '../utils/mapStyles';
 
-// Mapbox token (optional: if absent, falls back to open raster tiles)
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || 'pk.public_free_placeholder';
+// Mapbox token is optional. Without a valid public token we use the official
+// Esri Living Atlas satellite and OpenStreetMap raster styles (no token needed).
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
+const USE_MAPBOX = Boolean(MAPBOX_TOKEN) && MAPBOX_TOKEN.startsWith('pk.') && MAPBOX_TOKEN !== 'pk.public_free_placeholder';
 
 function featureCenter(feature) {
   const geometry = feature?.geometry;
@@ -62,7 +64,7 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
   const [mapMode, setMapMode] = useState('satellite'); // 'osm' or 'satellite'
 
   const activeStyle = useMemo(() => {
-    if (MAPBOX_TOKEN && MAPBOX_TOKEN.startsWith('pk.')) {
+    if (USE_MAPBOX) {
       return mapMode === 'satellite' 
         ? 'mapbox://styles/mapbox/satellite-streets-v12' 
         : 'mapbox://styles/mapbox/dark-v11';
@@ -156,7 +158,7 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
         {...viewState}
         onMove={evt => setViewState(evt.viewState)}
         mapStyle={activeStyle}
-        mapboxAccessToken={MAPBOX_TOKEN}
+        mapboxAccessToken={USE_MAPBOX ? MAPBOX_TOKEN : undefined}
         style={{ width: '100%', height: '100%' }}
       >
         <NavigationControl position="top-right" />
