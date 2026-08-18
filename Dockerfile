@@ -26,5 +26,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 复制项目代码
 COPY . /app/
 
+# 给入口脚本执行权限
+RUN chmod +x /app/entrypoint.sh
+
 # 暴露端口
 EXPOSE 8000
+
+# 默认启动命令 (兼容 Render 动态分配的 $PORT 与本地 Docker 运行)
+CMD ["/app/entrypoint.sh"]
