@@ -97,7 +97,7 @@ def generate_ai_damage_report(alert_id):
 
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 60})
-def process_disaster_event(event_id, is_simulation=False):
+def process_disaster_event(self, event_id, is_simulation=False):
     from .models import DisasterEvent, Farm, RiskAlert, Claim, ClaimTimeline
 
     try:

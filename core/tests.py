@@ -248,8 +248,8 @@ class ProcessDisasterEventContractTests(TestCase):
         self.assertEqual(float(alert.confidence), 95.0)
 
         self.assertEqual(Claim.objects.filter(alert=alert).count(), 1)
-        mock_sms_delay.assert_called_once()
-        mock_ai_delay.assert_called_once_with(alert.id)
+        mock_sms_delay.delay.assert_called_once()
+        mock_ai_delay.delay.assert_called_once_with(alert.id)
 
     @mock.patch('core.tasks.generate_ai_damage_report')
     @mock.patch('core.tasks.send_sms_alert')
@@ -260,8 +260,8 @@ class ProcessDisasterEventContractTests(TestCase):
         # unique_alert_per_farm_event 唯一约束：不重复创建告警/理赔/短信/AI 报告
         self.assertEqual(RiskAlert.objects.filter(farm=self.farm, event=self.event).count(), 1)
         self.assertEqual(Claim.objects.count(), 1)
-        self.assertEqual(mock_sms_delay.call_count, 1)
-        self.assertEqual(mock_ai_delay.call_count, 1)
+        self.assertEqual(mock_sms_delay.delay.call_count, 1)
+        self.assertEqual(mock_ai_delay.delay.call_count, 1)
 
 
 @override_settings(CHANNEL_LAYERS=IN_MEMORY_CHANNELS)

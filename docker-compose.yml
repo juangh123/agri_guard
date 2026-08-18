@@ -89,7 +89,7 @@
       - GDAL_LIBRARY_PATH=
       - GEOS_LIBRARY_PATH=
   frontend:
-    image: node:20
+    image: node:22
     working_dir: /app
     command: sh -c "npm install --force && npm run dev -- --host 0.0.0.0"
     volumes:
