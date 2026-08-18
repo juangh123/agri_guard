@@ -44,7 +44,7 @@ export default function SettingsPanel({ farms: _farms, onSaved }) {
 
   const fetchSettings = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/farms/settings/`);
+      const response = await axios.get(`${API_BASE_URL}/farms/integration_status/`);
       setIntegrationStatus(response.data);
       const firstFarm = response.data?.farms?.[0];
       if (firstFarm) {

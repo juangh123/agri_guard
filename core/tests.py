@@ -208,6 +208,20 @@ class FarmApiPermissionTests(TestCase):
         self.assertIn(self.client.delete(url).status_code,
                       (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
 
+    def test_anonymous_integration_status_requires_auth(self):
+        response = self.client.get('/api/farms/integration_status/')
+        self.assertIn(response.status_code,
+                      (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+
+    def test_authenticated_integration_status_lists_farms(self):
+        farm = make_farm(self.user)
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get('/api/farms/integration_status/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['sms']['mode'], 'mock')
+        self.assertEqual(response.data['web3']['mode'], 'mock')
+        self.assertEqual([item['id'] for item in response.data['farms']], [farm.id])
+
     def test_authenticated_post_creates_farm_owned_by_current_user(self):
         self.client.force_authenticate(user=self.user)
         response = self.client.post('/api/farms/', self.farm_payload, format='json')

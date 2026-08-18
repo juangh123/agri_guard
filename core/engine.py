@@ -96,8 +96,12 @@ class ParametricClaimEngine:
         if not trigger_results['claim_triggered']:
             return Decimal('0.00')
             
-        base_amount = Decimal('100.00')  # Base coverage per hectare
-        # Farm may not expose an explicit `area` attribute; fall back to geofence-derived hectares
+        # Micro-insurance pricing: smallholder policies should never become seven-figure
+        # payouts just because a hand-drawn GNSS polygon spans many square kilometres.
+        base_amount = Decimal('25.00')  # USD per insured hectare
+        insured_area_cap_ha = Decimal('5.00')
+        minimum_insured_area_ha = Decimal('0.50')
+
         farm_area = getattr(farm, 'area', None)
         if farm_area:
             farm_area_ha = Decimal(str(farm_area))
@@ -108,12 +112,19 @@ class ParametricClaimEngine:
                 farm_area_ha = Decimal(str(geofence_m.area / 10000))
             except Exception:
                 farm_area_ha = Decimal('1.0')
+
+        # Clamp to a realistic insured smallholder area. The raw polygon area is still used
+        # for spatial intersection/detection; it is only capped for payout arithmetic.
+        farm_area_ha = max(farm_area_ha, minimum_insured_area_ha)
+        farm_area_ha = min(farm_area_ha, insured_area_cap_ha)
+
         severity_multiplier = Decimal(event.severity_level)
         confidence = Decimal(str(trigger_results['confidence_score']))
-        
-        # Payout = Base * Area * Severity * Confidence
+
+        # Payout = Base * capped insured area * Severity * Confidence
         payout = base_amount * farm_area_ha * severity_multiplier * confidence
-        
+        payout = payout.quantize(Decimal('0.01'))
+
         # In a tiered payout model: small disasters yield partial payout, big yield full.
         if event.severity_level >= 3:
             return payout  # Full claim

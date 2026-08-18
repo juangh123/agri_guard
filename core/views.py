@@ -24,7 +24,7 @@ class FarmViewSet(viewsets.ModelViewSet):
 
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
-    def settings(self, request):
+    def integration_status(self, request):
         """
         Return integration status and the current user's farms for the Settings page.
         """
