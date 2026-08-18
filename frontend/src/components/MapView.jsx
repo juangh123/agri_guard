@@ -1,12 +1,10 @@
-﻿import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import MapGL, { NavigationControl, Source, Layer } from 'react-map-gl/mapbox';
 import { MapPin, Layers, AlertTriangle, Loader2 } from 'lucide-react';
+import { OPEN_MAP_STYLE, SATELLITE_MAP_STYLE } from '../utils/mapStyles';
 
-// Mapbox token comes from Vite env (see frontend/.env / frontend/.env.example)
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || 'MISSING_VITE_MAPBOX_TOKEN';
-if (!import.meta.env.VITE_MAPBOX_TOKEN) {
-  console.warn('VITE_MAPBOX_TOKEN is not set. Add it to frontend/.env 鈥?the map will not load without it.');
-}
+// Mapbox token (optional: if absent, falls back to open raster tiles)
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
 
 function featureCenter(feature) {
   const geometry = feature?.geometry;
@@ -57,10 +55,20 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
     longitude: 37.9, // Kenya coords
     latitude: 0.02,
     zoom: 11,
-    pitch: 45
+    pitch: 0
   });
 
-  const [mapStyle, setMapStyle] = useState('mapbox://styles/mapbox/dark-v11');
+  // Default to official OpenStreetMap style (Zero Key required)
+  const [mapMode, setMapMode] = useState('satellite'); // 'osm' or 'satellite'
+
+  const activeStyle = useMemo(() => {
+    if (MAPBOX_TOKEN && MAPBOX_TOKEN.startsWith('pk.')) {
+      return mapMode === 'satellite' 
+        ? 'mapbox://styles/mapbox/satellite-streets-v12' 
+        : 'mapbox://styles/mapbox/dark-v11';
+    }
+    return mapMode === 'satellite' ? SATELLITE_MAP_STYLE : OPEN_MAP_STYLE;
+  }, [mapMode]);
 
   const farmData = useMemo(() => {
     if (farms.length > 0) {
@@ -76,7 +84,6 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
     [primaryFeature]
   );
 
-  // Center the map on the first registered farm once it is loaded.
   useEffect(() => {
     const center = featureCenter(primaryFeature);
     if (center) {
@@ -97,21 +104,21 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
     <div className="h-[calc(100vh-12rem)] w-full rounded-2xl overflow-hidden relative group shadow-lg border border-gray-800">
       
       {/* Controls Overlay */}
-      <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-        <div className="glass-panel rounded-xl shadow-md p-1.5 flex flex-col gap-1 border border-white/20 bg-black/40 backdrop-blur-md">
+      <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
+        <div className="glass-panel rounded-xl shadow-md p-1.5 flex flex-col gap-1 border border-white/20 bg-black/60 backdrop-blur-md">
           <button 
-            onClick={() => setMapStyle('mapbox://styles/mapbox/dark-v11')}
-            className={`p-2.5 rounded-lg transition-all font-medium ${mapStyle.includes('dark') ? 'bg-green-500/20 text-green-400 shadow-sm' : 'hover:bg-white/10 text-gray-400'}`}
-            title="Dark Mode"
-          >
-            <Layers className="h-5 w-5" />
-          </button>
-          <button 
-            onClick={() => setMapStyle('mapbox://styles/mapbox/satellite-streets-v12')}
-            className={`p-2.5 rounded-lg transition-all font-medium ${mapStyle.includes('satellite') ? 'bg-green-500/20 text-green-400 shadow-sm' : 'hover:bg-white/10 text-gray-400'}`}
-            title="Satellite View"
+            onClick={() => setMapMode('satellite')}
+            className={`p-2.5 rounded-lg transition-all font-medium ${mapMode === 'satellite' ? 'bg-green-500/30 text-green-400 shadow-sm border border-green-500/40' : 'hover:bg-white/10 text-gray-400'}`}
+            title="ArcGIS Satellite View (Official Africa GeoPortal)"
           >
             <MapPin className="h-5 w-5" />
+          </button>
+          <button 
+            onClick={() => setMapMode('osm')}
+            className={`p-2.5 rounded-lg transition-all font-medium ${mapMode === 'osm' ? 'bg-green-500/30 text-green-400 shadow-sm border border-green-500/40' : 'hover:bg-white/10 text-gray-400'}`}
+            title="OpenStreetMap View (Official Open Layer)"
+          >
+            <Layers className="h-5 w-5" />
           </button>
         </div>
       </div>
@@ -134,22 +141,22 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
         </div>
       )}
 
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 glass-panel px-5 py-3 rounded-full shadow-lg border border-white/20 bg-black/40 backdrop-blur-md flex gap-6 text-xs font-bold text-gray-200">
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 glass-panel px-5 py-3 rounded-full shadow-lg border border-white/20 bg-black/60 backdrop-blur-md flex gap-6 text-xs font-bold text-gray-200">
         <div className="flex items-center gap-2">
           <span className={`w-3 h-3 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] block ring-2 ${isDisasterActive ? 'bg-red-500 ring-red-400 shadow-red-500' : 'bg-green-500 ring-green-400'}`}></span> 
-          {primaryFarmName}
+          {primaryFarmName} (Galileo GNSS)
         </div>
         <div className="flex items-center gap-2">
           <span className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)] block ring-2 ring-red-400 animate-pulse"></span> 
-          VIIRS Hotspots
+          VIIRS Hotspots (Living Atlas)
         </div>
       </div>
 
       <MapGL
         {...viewState}
         onMove={evt => setViewState(evt.viewState)}
-        mapStyle={mapStyle}
-        mapboxAccessToken={MAPBOX_TOKEN}
+        mapStyle={activeStyle}
+        mapboxAccessToken={MAPBOX_TOKEN || undefined}
         style={{ width: '100%', height: '100%' }}
       >
         <NavigationControl position="top-right" />
@@ -161,7 +168,7 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
             type="fill" 
             paint={{
               'fill-color': isDisasterActive ? '#EF4444' : '#22C55E',
-              'fill-opacity': isDisasterActive ? 0.4 : 0.2
+              'fill-opacity': isDisasterActive ? 0.45 : 0.25
             }} 
           />
           <Layer 
@@ -181,9 +188,9 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
             type="circle" 
             paint={{
               'circle-color': '#EF4444',
-              'circle-radius': 15,
-              'circle-opacity': 0.8,
-              'circle-blur': 0.5
+              'circle-radius': 16,
+              'circle-opacity': 0.85,
+              'circle-blur': 0.4
             }} 
           />
         </Source>
