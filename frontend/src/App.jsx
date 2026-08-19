@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import axios from 'axios';
@@ -20,11 +20,13 @@ axios.interceptors.request.use((config) => {
   return Promise.reject(error);
 });
 
-// On 401 responses (expired/invalid token) clear stored credentials and go to /login
+// On 401 responses (expired/invalid token) clear stored credentials and go to /login.
+// Token endpoint failures are excluded — the silent demo login below must not
+// bounce the app to /login when the backend is unreachable.
 axios.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !error.config?.url?.includes('/token/')) {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('token'); // legacy key cleanup
@@ -37,6 +39,8 @@ axios.interceptors.response.use(
   }
 );
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+
 // Fallback spinner while lazily loading pages
 const PageLoader = () => (
   <div className="min-h-screen w-full flex flex-col items-center justify-center bg-background">
@@ -48,6 +52,19 @@ const PageLoader = () => (
 );
 
 function App() {
+  // Silent demo login: hackathon judges shouldn't need credentials to trigger
+  // the full disaster pipeline (simulate endpoint requires auth). Read-only
+  // data still loads if this fails (offline / backend down).
+  useEffect(() => {
+    if (localStorage.getItem('access_token')) return;
+    axios.post(`${API_BASE_URL}/token/`, { username: 'demo', password: 'demo123' })
+      .then((res) => {
+        localStorage.setItem('access_token', res.data.access);
+        localStorage.setItem('refresh_token', res.data.refresh);
+      })
+      .catch(() => { /* offline demo mode — non-fatal */ });
+  }, []);
+
   return (
     <Router>
       <Toaster 

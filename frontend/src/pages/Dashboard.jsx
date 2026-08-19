@@ -217,6 +217,20 @@ export default function Dashboard() {
   const handleSimulateDisaster = async () => {
     setIsSimulating(true);
     try {
+      // Hit the real backend pipeline: spatial matching → alerts → claims →
+      // claim timeline steps → (mock) payout/SMS → WebSocket broadcast.
+      // Derive the event type from the latest alert so the demo scenario stays
+      // consistent with what's on screen.
+      const VALID_TYPES = ["FLOOD", "WILDFIRE", "DROUGHT"];
+      const fromAlert = String(alerts[0]?.event_type || "").toUpperCase();
+      const eventType = VALID_TYPES.includes(fromAlert) ? fromAlert : "FLOOD";
+      await axios.post(`${API_BASE_URL}/events/simulate/`, { event_type: eventType });
+      setIsDisasterActive(true);
+      toast.success(t("map_disaster_active"));
+      // Refresh lists immediately; the WebSocket NEW_ALERT push also arrives.
+      fetchInitialData();
+    } catch {
+      // Offline / unauthenticated fallback: keep the front-end-only demo behavior
       await new Promise((r) => setTimeout(r, 1200));
       setIsDisasterActive(true);
       toast.success(t("map_disaster_active"));
