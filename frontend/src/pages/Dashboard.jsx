@@ -1,406 +1,539 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import toast from 'react-hot-toast';
-import { useTranslation } from 'react-i18next';
-import { Menu, Map as MapIcon, BarChart3, Settings, LogOut, Search, Bell, Droplets, CheckCircle2, List } from 'lucide-react';
-import DashboardOverview from '../components/DashboardOverview';
-import MapView from '../components/MapView';
-import ClaimTimeline from '../components/ClaimTimeline';
-import SmsMockup from '../components/SmsMockup';
-import SettingsPanel from '../components/SettingsPanel';
-import LanguageSwitcher from '../components/LanguageSwitcher';
-import useAlertsSocket from '../hooks/useAlertsSocket';
+import { useTranslation } from "react-i18next";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
+import {
+  Shield,
+  Activity,
+  Map as MapIcon,
+  Clock,
+  SlidersHorizontal,
+  FileText,
+  Smartphone,
+  AlertTriangle,
+  Bell,
+  Search,
+  X,
+  Home,
+  WifiOff,
+} from "lucide-react";
+import axios from "axios";
+import toast from "react-hot-toast";
+import MapView from "../components/MapView";
+import ClaimTimeline from "../components/ClaimTimeline";
+import DashboardOverview from "../components/DashboardOverview";
+import FarmerHome from "../components/FarmerHome";
+import ReportQueryPanel from "../components/ReportQueryPanel";
+import SettingsPanel from "../components/SettingsPanel";
+import SmsMockup from "../components/SmsMockup";
+import { LanguageSwitcher } from "../components/LanguageSwitcher";
+import { CommandPalette } from "../components/CommandPalette";
+import { useAlertsSocket } from "../hooks/useAlertsSocket";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
 
-const Dashboard = () => {
-  const navigate = useNavigate();
+const NAV_ITEMS = [
+  { id: "overview", labelKey: "nav_overview", icon: Activity, farmerLabelKey: "nav_home", farmerIcon: Home },
+  { id: "map", labelKey: "nav_map", icon: MapIcon },
+  { id: "timeline", labelKey: "nav_claims", icon: Clock, farmerLabelKey: "nav_payments" },
+  { id: "reports", labelKey: "nav_reports", icon: FileText },
+  { id: "settings", labelKey: "nav_settings", icon: SlidersHorizontal },
+  { id: "sms", labelKey: "nav_sms", icon: Smartphone },
+];
+
+const FARMER_TABS = ["overview", "map", "timeline", "sms"];
+
+const ROLE_CONFIGS = {
+  insurer: { labelKey: "role_insurer" },
+  farmer: { labelKey: "role_farmer" },
+  regulator: { labelKey: "role_regulator" },
+};
+
+function applyThemeClasses(theme, isFarmer) {
+  const root = document.documentElement;
+  root.classList.toggle("dark", theme === "dark");
+  root.classList.toggle("high-contrast", theme === "high-contrast");
+  root.classList.toggle("farmer-mode", isFarmer);
+}
+
+export default function Dashboard() {
   const { t } = useTranslation();
-  const [userName, setUserName] = useState('');
-  const [activeTab, setActiveTab] = useState('map'); // Map-first design
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
-  // Real Data states
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") || "overview");
   const [farms, setFarms] = useState([]);
-  const [alerts, setAlerts] = useState([]);
   const [claims, setClaims] = useState([]);
-  const [activeClaimNo, setActiveClaimNo] = useState(null);
-  const [eventTypes, setEventTypes] = useState({}); // event id -> event_type lookup
-  
-  // Demo states
+  const [alerts, setAlerts] = useState([]);
+  const [selectedClaimNo, setSelectedClaimNo] = useState("");
   const [isDisasterActive, setIsDisasterActive] = useState(false);
-  const [isSmsVisible, setIsSmsVisible] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
-  const [role, setRole] = useState('insurance'); // 'farmer' or 'insurance'
-  const [searchQuery, setSearchQuery] = useState('');
+  const [userRole, setUserRole] = useState(() => localStorage.getItem("agri_guard_role") || "insurer");
+  const [theme, setTheme] = useState(() => localStorage.getItem("agri_guard_theme") || "default");
 
-  const fetchData = useCallback(async () => {
+  const [isCommandOpen, setIsCommandOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
+
+  // Offline resilience state
+  const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
+  const [lastSyncedAt, setLastSyncedAt] = useState(() => {
     try {
-      const token = localStorage.getItem('access_token');
-      if (!token) return;
+      const snap = JSON.parse(localStorage.getItem("agri_guard_cache") || "null");
+      return snap?.ts || null;
+    } catch { return null; }
+  });
+  const [usingCachedData, setUsingCachedData] = useState(false);
 
-      const headers = { Authorization: `Bearer ${token}` };
-      
-      const [farmsRes, alertsRes, claimsRes, eventsRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/farms/`, { headers }),
-        axios.get(`${API_BASE_URL}/alerts/`, { headers }),
-        axios.get(`${API_BASE_URL}/claims/`, { headers }),
-        axios.get(`${API_BASE_URL}/events/`, { headers })
-      ]);
-      
-      // /api/farms/ returns a GeoJSON FeatureCollection; farm fields live on feature.properties
-      setFarms(farmsRes.data.features || []);
-      setAlerts(alertsRes.data);
-      setClaims(claimsRes.data);
+  const isFarmer = userRole === "farmer";
 
-      // RiskAlert has no disaster_type field; the type lives on the linked event.
-      // Build an event id -> event_type map from the events GeoJSON FeatureCollection.
-      const typeMap = {};
-      (eventsRes.data.features || []).forEach((f) => {
-        typeMap[f.id] = f.properties?.event_type;
-      });
-      setEventTypes(typeMap);
-      
-      if (claimsRes.data.length > 0) {
-          setActiveClaimNo(claimsRes.data[0].claim_no);
-      }
-
-      // Auto-activate disaster UI if pending alerts exist
-      if (alertsRes.data.length > 0) {
-        setIsDisasterActive(true);
-      }
-    } catch (error) {
-      console.error("Failed to fetch dashboard data:", error);
-      toast.error(t('dashboard_load_failed', { defaultValue: 'Unable to load dashboard data.' }));
-    }
+  // Track connectivity; refetch fresh data when the connection comes back
+  useEffect(() => {
+    const handleOffline = () => setIsOffline(true);
+    const handleOnline = () => {
+      setIsOffline(false);
+      toast.success(t("online_restored"));
+      fetchInitialDataRef.current?.();
+    };
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+    return () => {
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+    };
   }, [t]);
 
-  // Real-time alerts via WebSocket (backend: core/consumers.py, group 'alerts_group').
-  // The hook keeps the latest handler via a ref, so this closure is never stale.
-  useAlertsSocket({
-    onNewAlert: (data) => {
-      if (!data) return;
-      // Optimistically prepend the pushed alert (dedup by id). The payload only
-      // carries { id, farm_name, event_title, status, confidence }; fetchData()
-      // below replaces it with the canonical REST shape (with farm/event ids).
-      setAlerts((prev) => [data, ...prev.filter((a) => a.id !== data.id)]);
-      setIsDisasterActive(true);
-      toast(t('new_alert_toast', { farm: data.farm_name, event: data.event_title }), { icon: '🚨' });
-      // Event-driven refresh: re-pull alerts & claims so the claims table and
-      // ClaimTimeline reflect the newly generated claim without waiting for polling.
-      fetchData();
-    },
-  });
+  // Apply theme + farmer-mode classes whenever they change (and on first load)
+  useEffect(() => {
+    applyThemeClasses(theme, isFarmer);
+  }, [theme, isFarmer]);
+
+  // Handle Role Change
+  const handleRoleChange = (newRole) => {
+    setUserRole(newRole);
+    localStorage.setItem("agri_guard_role", newRole);
+    // Farmers only have a simplified tab set — bounce out of pro-only tabs
+    if (newRole === "farmer" && !FARMER_TABS.includes(activeTab)) {
+      handleTabChange("overview");
+    }
+    toast.success(t("role_switched_toast", { role: t(ROLE_CONFIGS[newRole]?.labelKey || newRole) }));
+  };
+
+  // Handle Theme Change
+  const handleThemeChange = (newTheme) => {
+    setTheme(newTheme);
+    localStorage.setItem("agri_guard_theme", newTheme);
+    toast.success(t("theme_switched_toast", { theme: t(`theme_${newTheme === "high-contrast" ? "high_contrast" : newTheme}`) }));
+  };
+
+  // Keyboard Shortcut: Ctrl + K
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setIsCommandOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Sync tab with URL
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    setSearchParams({ tab: tabId });
+  };
+
+  const fetchInitialData = useCallback(async () => {
+    // Track per-endpoint failures so a fully-offline session falls back to the
+    // last synced snapshot instead of silently showing empty dashboards.
+    let failures = 0;
+    const track = (p) => p.catch(() => { failures += 1; return { data: [] }; });
+    try {
+      const [farmsRes, claimsRes, alertsRes] = await Promise.all([
+        track(axios.get(`${API_BASE_URL}/farms/`)),
+        track(axios.get(`${API_BASE_URL}/claims/`)),
+        track(axios.get(`${API_BASE_URL}/alerts/`)),
+      ]);
+
+      if (failures === 3) {
+        throw new Error("network unreachable");
+      }
+
+      const rawFarms = Array.isArray(farmsRes.data) ? farmsRes.data : farmsRes.data?.results || [];
+      const rawClaims = Array.isArray(claimsRes.data) ? claimsRes.data : claimsRes.data?.results || [];
+      const rawAlerts = Array.isArray(alertsRes.data) ? alertsRes.data : alertsRes.data?.results || [];
+
+      setFarms(rawFarms);
+      setClaims(rawClaims);
+      setAlerts(rawAlerts);
+      setUnreadCount(rawAlerts.filter((a) => ["DISASTER", "WARNING"].includes(String(a.status || "").toUpperCase())).length);
+      setUsingCachedData(false);
+
+      if (rawClaims.length > 0 && !selectedClaimNo) {
+        setSelectedClaimNo(rawClaims[0].claim_no);
+      }
+
+      // Snapshot for offline use
+      const ts = new Date().toISOString();
+      setLastSyncedAt(ts);
+      try {
+        localStorage.setItem("agri_guard_cache", JSON.stringify({ farms: rawFarms, claims: rawClaims, alerts: rawAlerts, ts }));
+      } catch { /* storage full/blocked — non-fatal */ }
+    } catch (err) {
+      console.error("Failed to load initial data", err);
+      // Offline fallback: restore the last synced snapshot
+      try {
+        const snap = JSON.parse(localStorage.getItem("agri_guard_cache") || "null");
+        if (snap) {
+          setFarms(snap.farms || []);
+          setClaims(snap.claims || []);
+          setAlerts(snap.alerts || []);
+          setLastSyncedAt(snap.ts || null);
+          setUsingCachedData(true);
+          if (snap.claims?.length > 0 && !selectedClaimNo) {
+            setSelectedClaimNo(snap.claims[0].claim_no);
+          }
+        }
+      } catch { /* no snapshot available */ }
+    }
+  }, [selectedClaimNo]);
+
+  // Ref used by the online/offline listener (avoids stale closures)
+  const fetchInitialDataRef = useRef(fetchInitialData);
+  fetchInitialDataRef.current = fetchInitialData;
 
   useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      navigate('/login');
-    } else {
-      const storedName = localStorage.getItem('userName') || 'Admin User';
-      setUserName(storedName);
-      fetchData();
-    }
-  }, [navigate, fetchData]);
+    fetchInitialData();
+  }, [fetchInitialData]);
 
-  const handleViewFullReport = () => {
-    setActiveTab('overview');
-  };
+  const handleNewAlert = useCallback((newAlert) => {
+    setAlerts((prev) => [newAlert, ...prev]);
+    setUnreadCount((prev) => prev + 1);
+    toast(newAlert.message || t("new_alert_toast"), { icon: "⚠️" });
+  }, [t]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('userName');
-    navigate('/login');
-  };
+  useAlertsSocket(handleNewAlert);
 
   const handleSimulateDisaster = async () => {
-    if (isDisasterActive) {
-      // Reset
-      setIsDisasterActive(false);
-      setIsSmsVisible(false);
-      return;
-    }
-
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      navigate('/login');
-      return;
-    }
-
     setIsSimulating(true);
     try {
-      await axios.post(
-        `${API_BASE_URL}/events/simulate/`,
-        { event_type: 'FLOOD', farm_id: farms[0]?.id },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await new Promise((r) => setTimeout(r, 1200));
       setIsDisasterActive(true);
-      toast.success(t('disaster_simulated', { defaultValue: 'Disaster pipeline executed.' }));
-      await fetchData();
-
-      setTimeout(() => {
-        setIsSmsVisible(true);
-      }, 8000); // Demo delay for SMS visibility
-    } catch (error) {
-      console.error('Failed to simulate disaster:', error);
-      toast.error(t('disaster_simulate_failed', { defaultValue: 'Failed to run disaster simulation.' }));
+      toast.success(t("map_disaster_active"));
     } finally {
       setIsSimulating(false);
     }
   };
 
-  const latestAlert = alerts[0] || null;
-  const alertEventType = latestAlert?.event_type || eventTypes[latestAlert?.event] || 'Flood';
-  const alertFarmName =
-    latestAlert?.farm_name ||
-    (latestAlert?.farm && farms.find(f => f.id === latestAlert.farm)?.properties?.name) ||
-    'Mwangi Farm';
+  // Search Results Calculation
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase();
+    const res = [];
 
-  const menuItems = [
-    { id: 'map', icon: MapIcon, label: t('nav_live_map') },
-    { id: 'overview', icon: BarChart3, label: t('analytics') },
-    { id: 'claims', icon: List, label: t('nav_claims') },
-    { id: 'settings', icon: Settings, label: t('nav_settings') }
-  ];
+    farms.forEach((f) => {
+      const name = f.properties?.name || f.name || `Farm #${f.id}`;
+      const crop = f.properties?.crop_type || f.crop_type || "";
+      if (name.toLowerCase().includes(q) || crop.toLowerCase().includes(q)) {
+        res.push({ type: "farm", title: name, subtitle: crop || t("overview_table_farm"), data: f });
+      }
+    });
+
+    claims.forEach((c) => {
+      if (c.claim_no?.toLowerCase().includes(q) || c.status?.toLowerCase().includes(q)) {
+        res.push({ type: "claim", title: c.claim_no, subtitle: `${t("overview_table_status")}: ${c.status}`, data: c });
+      }
+    });
+
+    alerts.forEach((a) => {
+      if (a.event_type?.toLowerCase().includes(q) || a.status?.toLowerCase().includes(q)) {
+        res.push({ type: "alert", title: `${a.event_type} (${a.status})`, subtitle: a.farm_name || `Farm #${a.farm}`, data: a });
+      }
+    });
+
+    return res.slice(0, 8);
+  }, [searchQuery, farms, claims, alerts, t]);
+
+  // Filter nav items based on role
+  const filteredNavItems = useMemo(() => {
+    if (isFarmer) {
+      return NAV_ITEMS.filter((i) => FARMER_TABS.includes(i.id));
+    }
+    return NAV_ITEMS;
+  }, [isFarmer]);
+
+  const navItemVisual = (item) => ({
+    Icon: isFarmer ? item.farmerIcon || item.icon : item.icon,
+    label: t(isFarmer && item.farmerLabelKey ? item.farmerLabelKey : item.labelKey),
+  });
 
   return (
-    <div className="flex h-screen bg-[#f4f6f8] font-sans overflow-hidden relative">
-      {/* Decorative ambient backgrounds */}
-      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-green-200/30 blur-3xl pointer-events-none"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-blue-200/30 blur-3xl pointer-events-none"></div>
-
-      {/* Sidebar */}
-      <aside className={`
-        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
-        md:translate-x-0 fixed md:relative z-40 w-72 h-full
-        glass-panel border-r border-white/60 shadow-xl shadow-green-900/5
-        transition-transform duration-300 flex flex-col backdrop-blur-xl bg-white/40
-      `}>
-        <div className="p-6 flex items-center gap-3 border-b border-white/60 relative z-10">
-          <div className="h-10 w-10 p-2 bg-gradient-to-br from-green-400 to-green-600 rounded-xl shadow-lg shadow-green-500/30 flex items-center justify-center">
-            <Droplets className="h-full w-full text-white" />
+    <div className="min-h-screen bg-background text-foreground flex flex-col transition-colors duration-200">
+      {/* Top Navbar */}
+      <header className="sticky top-0 z-30 border-b border-border bg-card/85 backdrop-blur-md px-4 lg:px-8 py-3 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-emerald-700 to-emerald-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
+            <Shield className="h-5 w-5" />
           </div>
-          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">AgriGuard</h1>
-        </div>
-
-        <div className="px-6 py-4 border-b border-white/60 relative z-10">
-          <div className="flex bg-gray-200/50 p-1 rounded-xl shadow-inner">
-            <button 
-              onClick={() => setRole('farmer')} 
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${role === 'farmer' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-              {t('role_farmer')}
-            </button>
-            <button 
-              onClick={() => setRole('insurance')} 
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${role === 'insurance' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-              {t('role_insurance')}
-            </button>
-          </div>
-        </div>
-
-        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto relative z-10">
-          {menuItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-semibold ${
-                activeTab === item.id 
-                  ? 'bg-white shadow-sm text-green-700 border border-white/60' 
-                  : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'
-              }`}
-            >
-              <item.icon className={`h-5 w-5 ${activeTab === item.id ? 'text-green-600' : 'text-gray-400'}`} />
-              {item.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="p-4 border-t border-white/60 relative z-10">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/40 border border-white/60 shadow-sm mb-2">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center text-white font-bold shadow-sm">
-              {userName.charAt(0)}
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-base tracking-tight text-primary">AgriGuard</span>
+              {!isFarmer && (
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-mono">v2.4 Pro</span>
+              )}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-gray-900 truncate">{userName}</p>
-              <p className="text-xs text-gray-500 truncate capitalize">{t('role_account', { role: t(role === 'farmer' ? 'role_farmer' : 'role_insurance') })}</p>
-            </div>
+            <p className="text-[11px] text-muted-foreground hidden sm:block">{t("app_subtitle")}</p>
           </div>
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-600 font-semibold hover:bg-red-50 hover:text-red-700 transition-colors"
-          >
-            <LogOut className="h-5 w-5" />
-            {t('logout')}
-          </button>
         </div>
-      </aside>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 z-10">
-        
-        {/* Header */}
-        <header className="h-20 glass-panel border-b border-white/60 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 backdrop-blur-xl bg-white/40 relative z-20">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="md:hidden p-2 rounded-xl text-gray-500 hover:bg-white/60 transition-colors border border-transparent hover:border-white/60"
-            >
-              <Menu className="h-6 w-6" />
-            </button>
-            <h2 className="text-2xl font-extrabold text-gray-900 hidden sm:block">
-              {menuItems.find(i => i.id === activeTab)?.label}
-            </h2>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:flex relative">
-              <Search className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        {/* Search & Quick Command (pro roles only — farmers use bottom nav) */}
+        {!isFarmer && (
+          <div className="relative flex-1 max-w-md hidden md:block">
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t('search_placeholder')}
-                className="pl-10 pr-4 py-2 bg-white/50 border border-white/60 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50 shadow-sm w-64 transition-all"
+                onFocus={() => setSearchFocused(true)}
+                placeholder={`${t("global_search_placeholder")} (Ctrl+K)`}
+                className="w-full pl-9 pr-14 py-2 rounded-xl text-xs bg-muted/60 border border-border placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all text-foreground"
               />
+              <button
+                onClick={() => setIsCommandOpen(true)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded text-[10px] font-mono bg-card border border-border text-muted-foreground hover:text-foreground"
+              >
+                ⌘K
+              </button>
             </div>
-            <LanguageSwitcher />
-            <button className="relative p-2 rounded-full text-gray-500 hover:bg-white/60 transition-colors border border-transparent hover:border-white/60" title={`${alerts.length} active alert${alerts.length === 1 ? '' : 's'}`}>
-              <Bell className="h-5 w-5" />
-              {alerts.length > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1 rounded-full bg-red-500 text-[10px] font-bold text-white border-2 border-white flex items-center justify-center">{alerts.length}</span>}
-            </button>
+
+            {/* Search Dropdown */}
+            {searchFocused && searchQuery && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-card rounded-2xl shadow-xl border border-border p-2 z-50 animate-fade-in">
+                <div className="flex items-center justify-between px-3 py-1.5 text-[11px] font-semibold text-muted-foreground border-b border-border/40">
+                  <span>{t("search_results_title")} ({searchResults.length})</span>
+                  <button onClick={() => setSearchFocused(false)} className="hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
+                </div>
+                <div className="max-h-60 overflow-y-auto mt-1 space-y-1 scrollbar-thin">
+                  {searchResults.map((item, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        if (item.type === "farm") handleTabChange("map");
+                        if (item.type === "claim") { setSelectedClaimNo(item.data.claim_no); handleTabChange("timeline"); }
+                        if (item.type === "alert") handleTabChange("map");
+                        setSearchFocused(false);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-muted/60 flex items-center justify-between text-xs transition-colors"
+                    >
+                      <div>
+                        <div className="font-semibold text-foreground">{item.title}</div>
+                        <div className="text-[10px] text-muted-foreground">{item.subtitle}</div>
+                      </div>
+                      <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-muted font-mono text-muted-foreground">{item.type}</span>
+                    </button>
+                  ))}
+                  {searchResults.length === 0 && (
+                    <div className="px-3 py-4 text-center text-xs text-muted-foreground">{t("no_search_results")}</div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-        </header>
+        )}
 
-        {/* Main Area */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative z-10">
-          {activeTab === 'overview' && <DashboardOverview farms={farms} alerts={alerts} claims={claims} />}
-          
-          {activeTab === 'settings' && <SettingsPanel farms={farms} onSaved={fetchData} />}
+        {/* Right Tools & Role Picker */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <select
+            value={userRole}
+            onChange={(e) => handleRoleChange(e.target.value)}
+            aria-label={t("switch_role")}
+            className="text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-border bg-card text-foreground cursor-pointer outline-none focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="insurer">{t("role_insurer")}</option>
+            <option value="farmer">{t("role_farmer")}</option>
+            <option value="regulator">{t("role_regulator")}</option>
+          </select>
 
-          {activeTab === 'claims' && (
-            <div className="flex gap-6 h-full flex-col lg:flex-row">
-                <div className="flex-1 glass-panel p-6 rounded-2xl shadow-lg border border-white/60">
-                    <h3 className="text-lg font-bold text-gray-800 mb-6">{t('recent_claims')}</h3>
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full text-left text-sm whitespace-nowrap">
-                            <thead className="uppercase tracking-wider border-b-2 border-gray-200">
-                                <tr>
-                                    <th scope="col" className="px-6 py-4">{t('th_claim_no')}</th>
-                                    <th scope="col" className="px-6 py-4">{t('th_status')}</th>
-                                    <th scope="col" className="px-6 py-4">{t('th_amount')}</th>
-                                    <th scope="col" className="px-6 py-4">{t('th_date')}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {claims.map((claim) => (
-                                    <tr key={claim.id} className="border-b border-gray-200 hover:bg-gray-50 cursor-pointer" onClick={() => setActiveClaimNo(claim.claim_no)}>
-                                        <td className="px-6 py-4 text-blue-600 font-medium">{claim.claim_no}</td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${claim.status === 'PAID' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                                                {claim.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">${claim.payout_amount}</td>
-                                        <td className="px-6 py-4 text-gray-500">{new Date(claim.triggered_at).toLocaleDateString()}</td>
-                                    </tr>
-                                ))}
-                                {claims.length === 0 && (
-                                    <tr>
-                                        <td colSpan="4" className="px-6 py-4 text-center text-gray-500">{t('no_claims')}</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+          {/* Notifications Popover */}
+          <div className="relative">
+            <button
+              onClick={() => { setNotificationsOpen(!notificationsOpen); setUnreadCount(0); }}
+              aria-label={t("system_alerts_title")}
+              className="p-2 rounded-xl bg-muted/60 hover:bg-muted border border-border relative text-muted-foreground hover:text-foreground transition-all"
+            >
+              <Bell className="w-4 h-4" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center animate-pulse">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+
+            {notificationsOpen && (
+              <>
+                {/* click-outside backdrop */}
+                <div className="fixed inset-0 z-40" onClick={() => setNotificationsOpen(false)} />
+                <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-card rounded-2xl shadow-xl border border-border p-3 z-50 animate-fade-in">
+                <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                  <span className="text-xs font-bold text-foreground">{t("system_alerts_title")}</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => { setUnreadCount(0); setNotificationsOpen(false); }}
+                      className="text-[11px] font-semibold text-primary hover:underline"
+                    >
+                      {t("mark_all_read")}
+                    </button>
+                    <button onClick={() => setNotificationsOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
+                  </div>
                 </div>
-                <div className="lg:w-1/3 flex flex-col gap-6 overflow-y-auto">
-                   <ClaimTimeline claimNo={activeClaimNo} />
+                <div className="mt-2 space-y-2 max-h-64 overflow-y-auto scrollbar-thin">
+                  {alerts.slice(0, 5).map((a) => (
+                    <button
+                      key={a.id}
+                      onClick={() => { setNotificationsOpen(false); handleTabChange("map"); }}
+                      className="w-full text-left p-2 rounded-xl bg-muted/40 hover:bg-muted/70 text-xs transition-colors flex items-start gap-2"
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <div className="font-semibold text-foreground">{a.event_type} - {a.farm_name || `Farm #${a.farm}`}</div>
+                        <div className="text-[10px] text-muted-foreground font-mono">{new Date(a.created_at).toLocaleString()}</div>
+                      </div>
+                    </button>
+                  ))}
+                  {alerts.length === 0 && (
+                    <div className="text-center py-4 text-xs text-muted-foreground">{t("no_alerts_matched")}</div>
+                  )}
                 </div>
-            </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          <LanguageSwitcher />
+        </div>
+      </header>
+
+      {/* Offline banner — shown when offline or serving cached data */}
+      {(isOffline || usingCachedData) && (
+        <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 flex items-center justify-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-400">
+          <WifiOff className="h-4 w-4 shrink-0" />
+          <span>{t("offline_banner")}</span>
+          {lastSyncedAt && (
+            <span className="font-mono font-semibold opacity-80">
+              {t("offline_synced_at", { time: new Date(lastSyncedAt).toLocaleString() })}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Main Container */}
+      <div className="flex-1 flex flex-col md:flex-row">
+        {/* Sidebar Nav (desktop) */}
+        <aside className="hidden md:block w-60 border-r border-border bg-card/60 p-4 space-y-1 shrink-0">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-3 mb-2 font-mono">
+            {t("navigation_title")}
+          </div>
+          {filteredNavItems.map((item) => {
+            const { Icon, label } = navItemVisual(item);
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleTabChange(item.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </aside>
+
+        {/* Tab Content Body — extra bottom padding on mobile for the nav bar */}
+        <main className="flex-1 p-4 lg:p-6 pb-24 md:pb-6 overflow-y-auto">
+          {activeTab === "overview" && (
+            isFarmer ? (
+              <FarmerHome
+                farms={farms}
+                claims={claims}
+                alerts={alerts}
+                onNavigate={handleTabChange}
+              />
+            ) : (
+              <DashboardOverview
+                farms={farms}
+                claims={claims}
+                alerts={alerts}
+                onNavigateClaims={(claimNo) => { setSelectedClaimNo(claimNo); handleTabChange("timeline"); }}
+              />
+            )
           )}
 
-          {activeTab === 'map' && (
-            <div className="flex gap-6 h-full flex-col lg:flex-row">
-              {/* Map Area */}
-              <div className={`flex-1 transition-all duration-500 ${role === 'insurance' ? 'lg:w-2/3' : 'w-full'}`}>
-                <MapView isDisasterActive={isDisasterActive} onSimulateDisaster={handleSimulateDisaster} isSimulating={isSimulating} farms={farms} />
-              </div>
-              
-              {/* Right Panel for Insurance View */}
-              {role === 'insurance' && (
-                <div className="lg:w-1/3 flex flex-col gap-6 overflow-y-auto">
-                   
-                   {/* Alert Card */}
-                   {isDisasterActive ? (
-                     <div className="glass-panel p-6 rounded-2xl border border-red-200 bg-red-50/50 animate-slide-up shadow-lg">
-                       <div className="flex items-center gap-3 text-red-600 mb-4">
-                         <span className="w-4 h-4 rounded-full bg-red-500 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.8)]"></span>
-                         <h3 className="font-extrabold text-xl tracking-tight">{t('high_risk')}: {alerts.length > 0 ? alertEventType : 'Flood'}</h3>
-                       </div>
-                       
-                       <div className="bg-white/60 rounded-xl p-4 mb-4 border border-red-100">
-                         <p className="text-gray-900 font-bold text-lg mb-1">{alerts.length > 0 ? alertFarmName : 'Mwangi Farm'}</p>
-                         <p className="text-sm text-gray-600 flex items-center gap-1"><MapIcon className="h-3 w-3" /> {t('km_from_center', { dist: '1.2' })}</p>
-                       </div>
-                       
-                       <div className="mb-5">
-                         <div className="flex justify-between text-sm mb-1.5 font-semibold">
-                           <span className="text-gray-600">{t('confidence_label')}</span>
-                           <span className="text-red-600">{alerts.length > 0 ? Math.round(latestAlert?.confidence || 85) : 85}%</span>
-                         </div>
-                         <div className="w-full bg-red-100/50 rounded-full h-2.5 overflow-hidden">
-                           <div className="bg-gradient-to-r from-red-400 to-red-600 h-full rounded-full transition-all duration-1000 ease-out" style={{width: `${alerts.length > 0 ? Math.round(latestAlert?.confidence || 85) : 85}%`}}></div>
-                         </div>
-                       </div>
-                       
-                       <div className="space-y-2 mb-6">
-                         <p className="text-sm text-gray-700 bg-white/40 p-2 rounded-lg"><strong className="text-gray-900">{t('trigger_label')}</strong> Water level &gt; 95th percentile · 3 Days</p>
-                         <p className="text-sm text-gray-700 bg-white/40 p-2 rounded-lg"><strong className="text-gray-900">{t('impact_label')}</strong> 4.2 Ha Maize Crop</p>
-                       </div>
-                       
-                       <button onClick={handleViewFullReport} className="w-full py-3 bg-white text-red-600 font-bold rounded-xl text-sm border border-red-200 shadow-sm hover:bg-red-50 hover:border-red-300 transition-all flex items-center justify-center gap-2">
-                          <Search className="h-4 w-4" /> {t('view_full_report')}
-                        </button>
-                     </div>
-                   ) : (
-                     <div className="glass-panel p-8 rounded-2xl border border-white/60 text-center flex flex-col items-center justify-center h-48 bg-white/40">
-                       <div className="w-16 h-16 bg-green-50 text-green-500 rounded-full flex items-center justify-center mb-3">
-                         <CheckCircle2 className="h-8 w-8" />
-                       </div>
-                       <h3 className="font-bold text-gray-900 text-lg mb-1">{t('system_normal')}</h3>
-                       <p className="text-sm text-gray-500">{t('no_active_disasters')}</p>
-                       <p className="text-xs text-gray-400 mt-4">{t('simulate_hint')}</p>
-                     </div>
-                   )}
+          {activeTab === "map" && (
+            <MapView
+              isDisasterActive={isDisasterActive}
+              onSimulateDisaster={isFarmer ? undefined : handleSimulateDisaster}
+              isSimulating={isSimulating}
+              farms={farms}
+              alerts={alerts}
+            />
+          )}
 
-                   {/* Claim Timeline */}
-                   {isDisasterActive && activeClaimNo && (
-                     <ClaimTimeline claimNo={activeClaimNo} />
-                   )}
-                </div>
-              )}
-            </div>
+          {activeTab === "timeline" && (
+            <ClaimTimeline claimNo={selectedClaimNo || claims[0]?.claim_no || "CLM-2026-0819-01"} />
+          )}
+
+          {activeTab === "reports" && (
+            <ReportQueryPanel farms={farms} alerts={alerts} claims={claims} />
+          )}
+
+          {activeTab === "settings" && (
+            <SettingsPanel farms={farms} onSaved={fetchInitialData} />
+          )}
+
+          {activeTab === "sms" && (
+            <SmsMockup inline />
           )}
         </main>
       </div>
 
-      {/* Overlays */}
-      {isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-30 md:hidden transition-opacity"
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
+      {/* Mobile bottom navigation — thumb-reach, safe-area aware */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 border-t border-border bg-card/95 backdrop-blur-md pb-safe">
+        <div className="flex items-stretch justify-around">
+          {filteredNavItems.map((item) => {
+            const { Icon, label } = navItemVisual(item);
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleTabChange(item.id)}
+                className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-bold transition-colors ${
+                  isActive ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
+                <Icon className={`h-5 w-5 ${isActive ? "scale-110" : ""} transition-transform`} />
+                <span className="leading-none">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
 
-      {/* Farmer View: Simulate SMS receiving */}
-      {role === 'farmer' && (
-        <SmsMockup isVisible={isSmsVisible} onClose={() => setIsSmsVisible(false)} />
-      )}
+      {/* Global Command Palette (Ctrl + K) */}
+      <CommandPalette
+        isOpen={isCommandOpen}
+        onClose={() => setIsCommandOpen(false)}
+        onNavigate={(tab) => handleTabChange(tab)}
+        onRoleChange={handleRoleChange}
+        currentRole={userRole}
+        onThemeChange={handleThemeChange}
+        currentTheme={theme}
+      />
     </div>
   );
-};
-
-export default Dashboard;
+}

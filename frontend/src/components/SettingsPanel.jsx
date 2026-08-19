@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import {
@@ -16,22 +17,23 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
 
-function StatusBadge({ mode }) {
+function StatusBadge({ mode, liveLabel, mockLabel }) {
   if (mode === 'live') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-bold text-green-700">
-        <CheckCircle2 className="h-3.5 w-3.5" /> Live
+      <span className="status-chip bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+        <CheckCircle2 className="h-3.5 w-3.5" /> {liveLabel}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700">
-      <XCircle className="h-3.5 w-3.5" /> Mock fallback
+    <span className="status-chip bg-amber-500/10 text-amber-600 border-amber-500/30">
+      <XCircle className="h-3.5 w-3.5" /> {mockLabel}
     </span>
   );
 }
 
 export default function SettingsPanel({ farms = [], onSaved }) {
+  const { t } = useTranslation();
   const [integrationStatus, setIntegrationStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -77,11 +79,11 @@ export default function SettingsPanel({ farms = [], onSaved }) {
     } catch (error) {
       console.error('Failed to load settings:', error);
       setLoadError(true);
-      toast.error('Unable to load settings.');
+      toast.error(t('settings_load_failed'));
     } finally {
       setLoading(false);
     }
-  }, [selectedFarmId]);
+  }, [selectedFarmId, t]);
 
   useEffect(() => {
     fetchSettings();
@@ -96,7 +98,7 @@ export default function SettingsPanel({ farms = [], onSaved }) {
 
   const handleSave = async () => {
     if (!selectedFarm) {
-      toast.error('No farm selected. Register a farm first.');
+      toast.error(t('toast_no_farm'));
       return;
     }
     setSaving(true);
@@ -105,12 +107,12 @@ export default function SettingsPanel({ farms = [], onSaved }) {
         phone_number: phoneNumber,
         wallet_address: walletAddress,
       });
-      toast.success('Farm contact and payout details saved.');
+      toast.success(t('toast_settings_saved'));
       await fetchSettings();
       onSaved?.();
     } catch (error) {
       console.error('Failed to save settings:', error);
-      toast.error(error.response?.data?.detail || 'Failed to save settings.');
+      toast.error(error.response?.data?.detail || t('toast_settings_failed'));
     } finally {
       setSaving(false);
     }
@@ -118,18 +120,18 @@ export default function SettingsPanel({ farms = [], onSaved }) {
 
   const connectWallet = async () => {
     if (!window.ethereum) {
-      toast.error('No Web3 wallet detected. Install MetaMask or paste an address manually.');
+      toast.error(t('toast_no_wallet'));
       return;
     }
     try {
       const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
       if (accounts?.[0]) {
         setWalletAddress(accounts[0]);
-        toast.success('Wallet connected.');
+        toast.success(t('toast_wallet_connected'));
       }
     } catch (error) {
       console.error('Wallet connection failed:', error);
-      toast.error('Wallet connection was rejected or failed.');
+      toast.error(t('toast_wallet_rejected'));
     }
   };
 
@@ -143,14 +145,14 @@ export default function SettingsPanel({ farms = [], onSaved }) {
       });
       setTestResult(response.data);
       if (response.data.mode === 'live') {
-        toast.success('Live SMS sent.');
+        toast.success(t('toast_sms_live'));
       } else {
-        toast('SMS test completed in mock mode.', { icon: '📱' });
+        toast(t('toast_sms_mock'), { icon: '📱' });
       }
     } catch (error) {
       console.error('SMS test failed:', error);
       setTestResult({ ok: false, error: error.response?.data?.error || error.message });
-      toast.error('SMS test failed.');
+      toast.error(t('toast_sms_failed'));
     } finally {
       setTesting('');
     }
@@ -166,14 +168,14 @@ export default function SettingsPanel({ farms = [], onSaved }) {
       });
       setTestResult(response.data);
       if (response.data.mode === 'live') {
-        toast.success('Live wallet configuration verified.');
+        toast.success(t('toast_wallet_live'));
       } else {
-        toast('Wallet address accepted in mock mode.', { icon: '🔗' });
+        toast(t('toast_wallet_mock'), { icon: '🔗' });
       }
     } catch (error) {
       console.error('Wallet test failed:', error);
       setTestResult({ ok: false, error: error.response?.data?.error || error.message });
-      toast.error('Wallet test failed.');
+      toast.error(t('toast_wallet_failed'));
     } finally {
       setTesting('');
     }
@@ -182,26 +184,29 @@ export default function SettingsPanel({ farms = [], onSaved }) {
   const smsMode = integrationStatus?.sms?.mode || 'mock';
   const web3Mode = integrationStatus?.web3?.mode || 'mock';
 
+  const inputClass =
+    'w-full rounded-xl border border-input bg-card py-3 ps-10 pe-4 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:ring-2 focus:ring-ring/40 focus:border-primary transition-colors';
+
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center text-gray-500">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-        Loading integration settings...
+      <div className="flex h-64 items-center justify-center text-muted-foreground">
+        <Loader2 className="me-2 h-5 w-5 animate-spin" />
+        {t('settings_loading')}
       </div>
     );
   }
 
   if (loadError) {
     return (
-      <div className="glass-panel rounded-2xl p-6 text-center shadow-lg border border-white/60">
+      <div className="card-surface p-6 text-center">
         <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-amber-500" />
-        <p className="text-sm font-semibold text-gray-700">Unable to load settings.</p>
+        <p className="text-sm font-semibold text-foreground">{t('settings_load_failed')}</p>
         <button
           type="button"
           onClick={fetchSettings}
-          className="mt-4 rounded-xl border border-gray-200 bg-white/70 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-white"
+          className="mt-4 rounded-xl border border-border bg-muted px-4 py-2 text-sm font-bold text-foreground hover:bg-muted/70"
         >
-          Retry
+          {t('retry')}
         </button>
       </div>
     );
@@ -209,12 +214,10 @@ export default function SettingsPanel({ farms = [], onSaved }) {
 
   if (settingsFarms.length === 0) {
     return (
-      <div className="glass-panel rounded-2xl p-8 text-center shadow-lg border border-white/60">
-        <ShieldCheck className="mx-auto mb-3 h-8 w-8 text-green-500" />
-        <h3 className="text-lg font-bold text-gray-900">No farms configured yet</h3>
-        <p className="mt-2 text-sm text-gray-500">
-          Register a farm first, then return here to configure SMS and payout details.
-        </p>
+      <div className="card-surface p-8 text-center">
+        <ShieldCheck className="mx-auto mb-3 h-8 w-8 text-primary" />
+        <h3 className="text-lg font-bold text-foreground">{t('no_farms_title')}</h3>
+        <p className="mt-2 text-sm text-muted-foreground">{t('no_farms_desc')}</p>
       </div>
     );
   }
@@ -222,56 +225,56 @@ export default function SettingsPanel({ farms = [], onSaved }) {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
       <div className="xl:col-span-2 space-y-6">
-        <div className="glass-panel rounded-2xl p-6 shadow-lg border border-white/60">
+        <div className="card-surface p-6">
           <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-100 text-green-700">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-gray-900">Payout & Contact Configuration</h3>
-              <p className="text-xs text-gray-500">These details are used by the alert and payout pipeline.</p>
+              <h3 className="text-lg font-bold text-foreground">{t('payout_contact_title')}</h3>
+              <p className="text-xs text-muted-foreground">{t('payout_contact_desc')}</p>
             </div>
           </div>
 
-          <label className="mb-2 block text-sm font-semibold text-gray-700">Farm</label>
+          <label className="mb-2 block text-sm font-bold text-foreground">{t('overview_table_farm')}</label>
           <select
             value={String(selectedFarm?.id || '')}
             onChange={(event) => setSelectedFarmId(String(event.target.value))}
-            className="mb-4 w-full rounded-xl border border-gray-200 bg-white/70 px-4 py-3 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-green-500/30"
+            className="mb-4 w-full rounded-xl border border-input bg-card px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/40"
           >
             {settingsFarms.map((farm) => (
               <option key={farm.id} value={farm.id}>{farm.name}</option>
             ))}
           </select>
 
-          <label className="mb-2 block text-sm font-semibold text-gray-700">SMS Phone Number</label>
+          <label className="mb-2 block text-sm font-bold text-foreground">{t('phone_label')}</label>
           <div className="relative mb-4">
-            <MessageSquare className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <MessageSquare className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               value={phoneNumber}
               onChange={(event) => setPhoneNumber(event.target.value)}
               placeholder="+254 700 000000"
-              className="w-full rounded-xl border border-gray-200 bg-white/70 py-3 pl-10 pr-4 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-green-500/30"
+              className={inputClass}
             />
           </div>
 
-          <label className="mb-2 block text-sm font-semibold text-gray-700">Payout Wallet Address</label>
+          <label className="mb-2 block text-sm font-bold text-foreground">{t('wallet_address_label')}</label>
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <Wallet className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Wallet className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={walletAddress}
                 onChange={(event) => setWalletAddress(event.target.value)}
                 placeholder="0x..."
-                className="w-full rounded-xl border border-gray-200 bg-white/70 py-3 pl-10 pr-4 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-green-500/30"
+                className={inputClass}
               />
             </div>
             <button
               type="button"
               onClick={connectWallet}
-              className="rounded-xl border border-gray-200 bg-white/70 px-4 text-sm font-bold text-gray-700 hover:bg-white"
+              className="rounded-xl border border-border bg-muted px-4 text-sm font-bold text-foreground hover:bg-muted/70"
             >
-              Connect Wallet
+              {t('connect_wallet')}
             </button>
           </div>
 
@@ -279,69 +282,69 @@ export default function SettingsPanel({ farms = [], onSaved }) {
             type="button"
             onClick={handleSave}
             disabled={saving || !selectedFarm}
-            className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-lg hover:from-green-600 hover:to-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-extrabold text-primary-foreground shadow-md hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Save Settings
+            {t('save_changes')}
           </button>
         </div>
       </div>
 
       <div className="space-y-6">
-        <div className="glass-panel rounded-2xl p-6 shadow-lg border border-white/60">
-          <h3 className="mb-4 text-lg font-bold text-gray-900">Integration Status</h3>
-          <div className="space-y-4 text-sm text-gray-700">
+        <div className="card-surface p-6">
+          <h3 className="mb-4 text-lg font-bold text-foreground">{t('integration_status_title')}</h3>
+          <div className="space-y-4 text-sm text-foreground">
             <div className="flex items-center justify-between">
-              <span className="font-semibold">SMS / Twilio</span>
-              <StatusBadge mode={smsMode} />
+              <span className="font-semibold">{t('sms_channel_label')}</span>
+              <StatusBadge mode={smsMode} liveLabel={t('status_live')} mockLabel={t('status_mock')} />
             </div>
             <div className="flex items-center justify-between">
-              <span className="font-semibold">Web3 / Payout</span>
-              <StatusBadge mode={web3Mode} />
+              <span className="font-semibold">{t('web3_channel_label')}</span>
+              <StatusBadge mode={web3Mode} liveLabel={t('status_live')} mockLabel={t('status_mock')} />
             </div>
             {integrationStatus?.web3?.configured && (
-              <p className="rounded-xl bg-green-50 p-3 text-xs text-green-700">
-                On-chain settlement is configured.
+              <p className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-xs text-emerald-600">
+                {t('web3_configured_msg')}
               </p>
             )}
             {!integrationStatus?.web3?.configured && (
-              <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-700">
-                Payouts use the safe mock fallback until WEB3_PROVIDER_URI, WEB3_PRIVATE_KEY and SMART_CONTRACT_ADDRESS are set.
+              <p className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-600">
+                {t('web3_mock_msg')}
               </p>
             )}
             {!integrationStatus?.sms?.configured && (
-              <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-700">
-                SMS uses the mock sender until TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER are set.
+              <p className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-600">
+                {t('sms_mock_msg')}
               </p>
             )}
           </div>
         </div>
 
-        <div className="glass-panel rounded-2xl p-6 shadow-lg border border-white/60">
-          <h3 className="mb-4 text-lg font-bold text-gray-900">Connection Tests</h3>
+        <div className="card-surface p-6">
+          <h3 className="mb-4 text-lg font-bold text-foreground">{t('connection_tests_title')}</h3>
           <div className="flex flex-col gap-3">
             <button
               type="button"
               onClick={handleTestSms}
               disabled={testing === 'sms' || !selectedFarm}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white/70 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-muted px-4 py-3 text-sm font-bold text-foreground hover:bg-muted/70 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {testing === 'sms' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              Test SMS
+              {t('test_sms')}
             </button>
             <button
               type="button"
               onClick={handleTestWallet}
               disabled={testing === 'wallet' || !selectedFarm}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white/70 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-muted px-4 py-3 text-sm font-bold text-foreground hover:bg-muted/70 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {testing === 'wallet' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-              Test Wallet Config
+              {t('test_wallet')}
             </button>
           </div>
 
           {testResult && (
-            <pre className="mt-4 overflow-x-auto rounded-xl bg-gray-900 p-4 text-xs text-green-300">
+            <pre className="mt-4 overflow-x-auto rounded-xl bg-gray-900 p-4 text-xs text-emerald-300 scrollbar-thin">
               {JSON.stringify(testResult, null, 2)}
             </pre>
           )}

@@ -1,26 +1,15 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef } from "react";
 
-// Derive the WebSocket endpoint from the API base URL by default. This keeps
-// Vercel/Render deployments working without requiring a separate VITE_WS_BASE_URL
-// variable, while still allowing an explicit override for custom setups.
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
-const configuredWsBase = (import.meta.env.VITE_WS_BASE_URL || '').trim();
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
+const configuredWsBase = (import.meta.env.VITE_WS_BASE_URL || "").trim();
 const WS_BASE_URL = configuredWsBase || (() => {
-  const wsBase = API_BASE_URL.replace(/^http/, 'ws').replace(/\/api\/?$/, '');
+  const wsBase = API_BASE_URL.replace(/^http/, "ws").replace(/\/api\/?$/, "");
   return `${wsBase}/ws/alerts/`;
 })();
 
-/**
- * useAlertsSocket — connects to the backend AlertConsumer at ws(s)://<host>/ws/alerts/
- * when a Channels endpoint is available.
- *
- * Backend wire format (core/consumers.py):
- *   - on connect:      { "message": "Connected to Alert WebSocket" }
- *   - pushed messages: { "message": { "type": "NEW_ALERT", "data": {...} } }
- */
-export default function useAlertsSocket({ onMessage, onNewAlert } = {}) {
-  const handlersRef = useRef({ onMessage, onNewAlert });
-  handlersRef.current = { onMessage, onNewAlert };
+export function useAlertsSocket(onNewAlert) {
+  const handlerRef = useRef(onNewAlert);
+  handlerRef.current = onNewAlert;
 
   useEffect(() => {
     if (!WS_BASE_URL) return undefined;
@@ -33,37 +22,40 @@ export default function useAlertsSocket({ onMessage, onNewAlert } = {}) {
     const connect = () => {
       if (unmounted) return;
 
-      socket = new WebSocket(WS_BASE_URL);
+      try {
+        socket = new WebSocket(WS_BASE_URL);
 
-      socket.onopen = () => {
-        attempts = 0;
-      };
+        socket.onopen = () => {
+          attempts = 0;
+        };
 
-      socket.onmessage = (event) => {
-        try {
-          const parsed = JSON.parse(event.data);
-          const payload = parsed?.message;
-          if (payload && typeof payload === 'object' && payload.type) {
-            handlersRef.current.onMessage?.(payload);
-            if (payload.type === 'NEW_ALERT') {
-              handlersRef.current.onNewAlert?.(payload.data);
+        socket.onmessage = (event) => {
+          try {
+            const parsed = JSON.parse(event.data);
+            const payload = parsed?.message;
+            if (payload && typeof payload === "object" && payload.type) {
+              if (payload.type === "NEW_ALERT") {
+                handlerRef.current?.(payload.data);
+              }
             }
+          } catch (err) {
+            console.error("Failed to parse WebSocket alert message:", err);
           }
-        } catch (err) {
-          console.error('Failed to parse WebSocket alert message:', err);
-        }
-      };
+        };
 
-      socket.onerror = () => {
-        socket?.close();
-      };
+        socket.onerror = () => {
+          socket?.close();
+        };
 
-      socket.onclose = () => {
-        if (unmounted) return;
-        const delay = Math.min(1000 * 2 ** attempts, 30000);
-        attempts += 1;
-        reconnectTimer = setTimeout(connect, delay);
-      };
+        socket.onclose = () => {
+          if (unmounted) return;
+          const delay = Math.min(1000 * 2 ** attempts, 30000);
+          attempts += 1;
+          reconnectTimer = setTimeout(connect, delay);
+        };
+      } catch {
+        // fallback
+      }
     };
 
     connect();
@@ -78,3 +70,5 @@ export default function useAlertsSocket({ onMessage, onNewAlert } = {}) {
     };
   }, []);
 }
+
+export default useAlertsSocket;
