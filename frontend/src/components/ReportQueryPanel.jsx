@@ -27,8 +27,8 @@ export default function ReportQueryPanel({ farms = [], alerts = [], claims = [] 
   }, [alerts.length, claims.length, farms.length]);
 
   const farmOptions = useMemo(
-    () => farms.map((farm) => ({ id: farm.id, name: farm.properties?.name || farm.name || `Farm #${farm.id}` })),
-    [farms]
+    () => farms.map((farm) => ({ id: farm.id, name: farm.properties?.name || farm.name || t("farm_number", { id: farm.id }) })),
+    [farms, t]
   );
 
   const runReport = () => {
@@ -91,7 +91,7 @@ export default function ReportQueryPanel({ farms = [], alerts = [], claims = [] 
       ["Claim ID", "Farm", "Event Type", "Status", "Payout Amount", "Trigger Date", "Tx Hash"],
       ...report.claims.map(c => [
         c.claim_no,
-        c.farm_name || `Farm #${c.farm}`,
+        c.farm_name || t("farm_number", { id: c.farm }),
         c.event_type || "DROUGHT",
         c.status,
         c.payout_amount,
@@ -246,7 +246,7 @@ export default function ReportQueryPanel({ farms = [], alerts = [], claims = [] 
                   <tbody>
                     {report.alerts.map((alert) => (
                       <tr key={alert.id} className="border-b border-border/40 last:border-0 hover:bg-muted/20">
-                        <td className="px-4 py-3 font-semibold text-foreground">{alert.farm_name || `Farm #${alert.farm}`}</td>
+                        <td className="px-4 py-3 font-semibold text-foreground">{alert.farm_name || t("farm_number", { id: alert.farm })}</td>
                         <td className="px-4 py-3">{alert.event_type}</td>
                         <td className="px-4 py-3">{alert.status}</td>
                         <td className="px-4 py-3 font-mono">{Number(alert.confidence || 0).toFixed(1)}%</td>
@@ -277,7 +277,7 @@ export default function ReportQueryPanel({ farms = [], alerts = [], claims = [] 
                     {report.claims.map((claim) => (
                       <tr key={claim.id} className="border-b border-border/40 last:border-0 hover:bg-muted/20">
                         <td className="px-4 py-3 font-semibold text-primary font-mono">{claim.claim_no}</td>
-                        <td className="px-4 py-3">{claim.farm_name || `Farm #${claim.farm}`}</td>
+                        <td className="px-4 py-3">{claim.farm_name || t("farm_number", { id: claim.farm })}</td>
                         <td className="px-4 py-3">{claim.status}</td>
                         <td className="px-4 py-3 font-semibold text-foreground">{formatMoney(claim.payout_amount)}</td>
                         <td className="px-4 py-3 text-muted-foreground font-mono text-[11px]">{claim.tx_hash ? `${claim.tx_hash.slice(0, 10)}…` : "0x8f2a…92a1"}</td>

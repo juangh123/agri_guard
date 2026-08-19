@@ -232,7 +232,7 @@ export default function Dashboard() {
     const res = [];
 
     farms.forEach((f) => {
-      const name = f.properties?.name || f.name || `Farm #${f.id}`;
+      const name = f.properties?.name || f.name || t("farm_number", { id: f.id });
       const crop = f.properties?.crop_type || f.crop_type || "";
       if (name.toLowerCase().includes(q) || crop.toLowerCase().includes(q)) {
         res.push({ type: "farm", title: name, subtitle: crop || t("overview_table_farm"), data: f });
@@ -247,7 +247,7 @@ export default function Dashboard() {
 
     alerts.forEach((a) => {
       if (a.event_type?.toLowerCase().includes(q) || a.status?.toLowerCase().includes(q)) {
-        res.push({ type: "alert", title: `${a.event_type} (${a.status})`, subtitle: a.farm_name || `Farm #${a.farm}`, data: a });
+        res.push({ type: "alert", title: `${a.event_type} (${a.status})`, subtitle: a.farm_name || t("farm_number", { id: a.farm }), data: a });
       }
     });
 
@@ -396,7 +396,7 @@ export default function Dashboard() {
                     >
                       <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
                       <div className="flex-1">
-                        <div className="font-semibold text-foreground">{a.event_type} - {a.farm_name || `Farm #${a.farm}`}</div>
+                        <div className="font-semibold text-foreground">{a.event_type} - {a.farm_name || t("farm_number", { id: a.farm })}</div>
                         <div className="text-[10px] text-muted-foreground font-mono">{new Date(a.created_at).toLocaleString()}</div>
                       </div>
                     </button>

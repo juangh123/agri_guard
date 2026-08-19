@@ -257,7 +257,7 @@ export default function DashboardOverview({ farms = [], alerts = [], claims = []
               >
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-primary font-mono truncate">{claim.claim_no}</p>
-                  <p className="text-xs text-muted-foreground">{claim.farm_name || `Farm #${claim.farm}`}</p>
+                  <p className="text-xs text-muted-foreground">{claim.farm_name || t("farm_number", { id: claim.farm })}</p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <span className="text-sm font-extrabold text-foreground">{formatMoney(claim.payout_amount)}</span>

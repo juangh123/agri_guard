@@ -69,10 +69,10 @@ function collectionBounds(featureCollection) {
   return Number.isFinite(west) ? [west, south, east, north] : null;
 }
 
-function fallbackFarmFeature() {
+function fallbackFarmFeature(defaultName) {
   return {
     type: "Feature",
-    properties: { name: "Mwangi Farm" },
+    properties: { name: defaultName },
     geometry: {
       type: "Polygon",
       coordinates: [
@@ -267,11 +267,11 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
     if (farms.length > 0) {
       return { type: "FeatureCollection", features: farms };
     }
-    return { type: "FeatureCollection", features: [fallbackFarmFeature()] };
-  }, [farms]);
+    return { type: "FeatureCollection", features: [fallbackFarmFeature(t("farmer_default_farm_name"))] };
+  }, [farms, t]);
 
   const primaryFeature = useMemo(() => farmData.features[0], [farmData]);
-  const primaryFarmName = primaryFeature?.properties?.name || "Mwangi Farm";
+  const primaryFarmName = primaryFeature?.properties?.name || t("farmer_default_farm_name");
   const hotspotCoordinates = useMemo(
     () => featureCenter(primaryFeature) || [37.9, 0.02],
     [primaryFeature]
@@ -615,7 +615,7 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
             id="farm-fence-label"
             type="symbol"
             layout={{
-              "text-field": ["coalesce", ["get", "name"], "Farm"],
+              "text-field": ["coalesce", ["get", "name"], t("farmer_default_farm_name")],
               "text-size": 13,
               "text-font": ["Noto Sans Regular"],
               "text-allow-overlap": true

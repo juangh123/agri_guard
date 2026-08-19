@@ -414,7 +414,8 @@ const resources = {
       "ts_q_heat_mild": "Mild anomaly",
       "ts_q_heat_elevated": "Elevated",
       "ts_q_heat_severe": "Severe heat",
-      "ts_q_heat_extreme": "Extreme heatwave"
+      "ts_q_heat_extreme": "Extreme heatwave",
+      "farm_number": "Farm #{{id}}"
     }
   },
   "fr": {
@@ -829,7 +830,8 @@ const resources = {
       "ts_q_heat_mild": "Anomalie légère",
       "ts_q_heat_elevated": "Élevée",
       "ts_q_heat_severe": "Chaleur sévère",
-      "ts_q_heat_extreme": "Canicule extrême"
+      "ts_q_heat_extreme": "Canicule extrême",
+      "farm_number": "Exploitation n°{{id}}"
     }
   },
   "sw": {
@@ -1244,7 +1246,8 @@ const resources = {
       "ts_q_heat_mild": "Joto kidogo",
       "ts_q_heat_elevated": "Joto la juu",
       "ts_q_heat_severe": "Joto kali",
-      "ts_q_heat_extreme": "Joto kali mno"
+      "ts_q_heat_extreme": "Joto kali mno",
+      "farm_number": "Shamba #{{id}}"
     }
   },
   "zh": {
@@ -1659,7 +1662,8 @@ const resources = {
       "ts_q_heat_mild": "轻度偏暖",
       "ts_q_heat_elevated": "偏高",
       "ts_q_heat_severe": "严重高温",
-      "ts_q_heat_extreme": "极端热浪"
+      "ts_q_heat_extreme": "极端热浪",
+      "farm_number": "农场 #{{id}}"
     }
   },
   "es": {

@@ -47,12 +47,12 @@ export default function SettingsPanel({ farms = [], onSaved }) {
   const dashboardFarmOptions = useMemo(
     () => farms.map((farm) => ({
       id: farm.id,
-      name: farm.properties?.name || farm.name || `Farm #${farm.id}`,
+      name: farm.properties?.name || farm.name || t("farm_number", { id: farm.id }),
       phone_number: farm.properties?.phone_number || '',
       wallet_address: farm.properties?.wallet_address || '',
       crop_type: farm.properties?.crop_type || '',
     })),
-    [farms]
+    [farms, t]
   );
   const settingsFarms = useMemo(
     () => integrationStatus?.farms?.length ? integrationStatus.farms : dashboardFarmOptions,
