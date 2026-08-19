@@ -1,10 +1,13 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { Suspense, lazy } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import Dashboard from './pages/Dashboard';
-import Register from './pages/Register';
-import Login from './pages/Login';
 import axios from 'axios';
+import { Loader2 } from 'lucide-react';
+
+// Lazy load route pages for performance & code-splitting
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Register = lazy(() => import('./pages/Register'));
+const Login = lazy(() => import('./pages/Login'));
 
 // Configure axios interceptor for JWT
 axios.interceptors.request.use((config) => {
@@ -34,22 +37,45 @@ axios.interceptors.response.use(
   }
 );
 
+// Fallback spinner while lazily loading pages
+const PageLoader = () => (
+  <div className="min-h-screen w-full flex flex-col items-center justify-center bg-background">
+    <div className="flex flex-col items-center gap-3 card-surface p-8 shadow-xl">
+      <Loader2 className="h-10 w-10 text-primary animate-spin" />
+      <span className="text-sm font-semibold text-muted-foreground">Loading AgriGuard...</span>
+    </div>
+  </div>
+);
+
 function App() {
   return (
     <Router>
       <Toaster 
         position="top-center" 
         toastOptions={{ 
-          style: { background: '#333', color: '#fff' },
-          success: { iconTheme: { primary: '#2ecc71', secondary: '#fff' } },
-          error: { iconTheme: { primary: '#e74c3c', secondary: '#fff' } }
+          style: {
+            background: 'hsl(var(--popover))',
+            color: 'hsl(var(--popover-foreground))',
+            border: '1px solid hsl(var(--border))',
+            borderRadius: '12px',
+            fontSize: '13px',
+            fontWeight: 600,
+            boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.15)',
+          },
+          success: { iconTheme: { primary: 'hsl(var(--primary))', secondary: 'hsl(var(--primary-foreground))' } },
+          error: { iconTheme: { primary: 'hsl(var(--destructive))', secondary: 'hsl(var(--destructive-foreground))' } }
         }} 
       />
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/login" element={<Login />} />
-      </Routes>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/dashboard" element={<Navigate to="/" replace />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<Login />} />
+          {/* Catch-all route to prevent blank page on unknown URL */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </Router>
   );
 }

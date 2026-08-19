@@ -1,131 +1,180 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   AgriGuard Design System
+   Palette: deep leaf green (primary) + warm harvest neutrals,
+   tuned for sunlight readability on low-cost Android screens.
+   ============================================================ */
+
 @layer base {
   :root {
-    --background: 224 71.4% 4.1%;
-    --foreground: 210 20% 98%;
+    --background: 48 30% 97%;
+    --foreground: 155 30% 10%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 20% 98%;
+    --card: 0 0% 100%;
+    --card-foreground: 155 30% 10%;
 
-    --popover: 224 71.4% 4.1%;
-    --popover-foreground: 210 20% 98%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 155 30% 10%;
 
-    --primary: 142.1 70.6% 45.3%;
-    --primary-foreground: 144.9 80.4% 10%;
+    --primary: 152 62% 28%;
+    --primary-foreground: 48 40% 98%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 20% 98%;
+    --secondary: 152 25% 93%;
+    --secondary-foreground: 152 50% 20%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 46 18% 92%;
+    --muted-foreground: 152 10% 40%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 20% 98%;
+    --accent: 36 92% 48%;
+    --accent-foreground: 36 100% 10%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 20% 98%;
+    --destructive: 0 72% 46%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 142.1 70.6% 45.3%;
+    --border: 150 14% 85%;
+    --input: 150 14% 82%;
+    --ring: 152 62% 32%;
 
-    --radius: 0.75rem;
+    --radius: 0.9rem;
+
+    /* Brand tokens */
+    --brand-leaf: 152 62% 32%;
+    --brand-harvest: 36 92% 48%;
+    --brand-sky: 199 80% 42%;
+    --brand-danger: 0 72% 46%;
+  }
+
+  .dark {
+    --background: 155 28% 7%;
+    --foreground: 48 25% 94%;
+
+    --card: 154 24% 10%;
+    --card-foreground: 48 25% 94%;
+
+    --popover: 154 24% 10%;
+    --popover-foreground: 48 25% 94%;
+
+    --primary: 152 55% 46%;
+    --primary-foreground: 155 40% 6%;
+
+    --secondary: 152 20% 16%;
+    --secondary-foreground: 48 25% 92%;
+
+    --muted: 152 16% 16%;
+    --muted-foreground: 48 10% 62%;
+
+    --accent: 36 92% 52%;
+    --accent-foreground: 36 100% 8%;
+
+    --destructive: 0 68% 52%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 152 14% 20%;
+    --input: 152 14% 24%;
+    --ring: 152 55% 50%;
+  }
+
+  /* High-contrast field mode: harsh sunlight, low-end screens */
+  .high-contrast {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 0%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 0%;
+    --primary: 152 100% 18%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 92%;
+    --secondary-foreground: 0 0% 0%;
+    --muted: 0 0% 90%;
+    --muted-foreground: 0 0% 22%;
+    --accent: 36 100% 35%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 100% 35%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 25%;
+    --input: 0 0% 25%;
+    --ring: 0 0% 0%;
   }
 
   * {
-    @apply border-border selection:bg-primary/30 selection:text-primary-foreground;
+    @apply border-border;
   }
-  
+
   body {
-    @apply bg-background text-foreground antialiased selection:bg-primary/30 font-sans;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
   }
 
-  /* Custom Scrollbar */
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+  /* Farmer simple mode: larger type + thumb-size touch targets */
+  html.farmer-mode {
+    font-size: 112.5%; /* 18px base */
+  }
+  html.farmer-mode button,
+  html.farmer-mode select,
+  html.farmer-mode input,
+  html.farmer-mode a {
+    min-height: 44px;
   }
 
-  ::-webkit-scrollbar-track {
-    background: transparent;
+  ::selection {
+    background: hsl(var(--primary) / 0.25);
   }
 
-  ::-webkit-scrollbar-thumb {
-    @apply bg-muted-foreground/30 rounded-full hover:bg-muted-foreground/50 transition-colors;
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 
-  ::-webkit-scrollbar-corner {
-    background: transparent;
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Frosted panel used across dashboards and map overlays */
+  .glass-panel {
+    @apply bg-card/80 backdrop-blur-md;
+  }
+
+  .card-surface {
+    @apply bg-card text-card-foreground rounded-2xl border border-border shadow-sm;
+  }
+
+  .status-chip {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border;
   }
 }
 
 @layer utilities {
-  .glass {
-    @apply bg-background/60 backdrop-blur-md border border-white/10 shadow-lg;
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
   }
-  
-  .glass-card {
-    @apply bg-card/60 backdrop-blur-xl border border-white/5 shadow-xl transition-all duration-300;
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
   }
-
-  .glass-card:hover {
-    @apply bg-card/80 shadow-2xl -translate-y-1 border-white/10;
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.35);
+    border-radius: 9999px;
   }
-
-  .glass-panel {
-    @apply bg-white/40 backdrop-blur-lg border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)];
-  }
-
-  .text-glow {
-    text-shadow: 0 0 20px rgba(74, 222, 128, 0.5);
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
   }
 
-  .animate-fade-in {
-    animation: fadeIn 0.5s ease-out;
+  /* Safe-area padding for mobile bottom nav (notched devices) */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
-  .animate-slide-up {
-    animation: slideUp 0.5s ease-out forwards;
-  }
-  .animation-delay-100 {
-    animation-delay: 100ms;
-  }
-  .animation-delay-200 {
-    animation-delay: 200ms;
-  }
-  .animation-delay-300 {
-    animation-delay: 300ms;
-  }
-  .animation-delay-400 {
-    animation-delay: 400ms;
-  }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideUp {
-  from { 
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.map-container {
-  height: 100%;
-  width: 100%;
-  min-height: 400px;
-  border-radius: var(--radius);
-  overflow: hidden;
 }
