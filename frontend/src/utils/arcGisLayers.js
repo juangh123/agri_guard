@@ -17,6 +17,7 @@ export const ARCGIS_LAYERS = {
     resultRecordCount: 800,
     orderByFields: 'acq_date DESC',
     outFields: 'latitude,longitude,bright_ti4,frp,confidence,daynight,acq_date,acq_time,hours_old',
+    legendKeys: ['legend_high_confidence', 'legend_nominal_confidence', 'legend_low_confidence'],
     legend: [
       { label: 'High confidence', color: '#ef4444' },
       { label: 'Nominal confidence', color: '#f97316' },
@@ -34,6 +35,7 @@ export const ARCGIS_LAYERS = {
     resultRecordCount: 700,
     orderByFields: 'meanflow DESC',
     outFields: 'comid,streamorder,rivercountry,meanflow,returnperiod,thickness,timevalue',
+    legendKeys: ['legend_low_flow', 'legend_moderate', 'legend_high', 'legend_extreme'],
     legend: [
       { label: 'Low flow', color: '#38bdf8' },
       { label: 'Moderate', color: '#2563eb' },
@@ -52,6 +54,7 @@ export const ARCGIS_LAYERS = {
     resultRecordCount: 500,
     orderByFields: 'lastupdate DESC',
     outFields: 'stationid,stationurl,stage_ft,flow_cfs,status,name,lastupdate,lastupdate_age,status_full',
+    legendKeys: ['legend_normal', 'legend_minor', 'legend_moderate', 'legend_major_flood'],
     legend: [
       { label: 'Normal', color: '#22c55e' },
       { label: 'Minor', color: '#facc15' },
