@@ -426,7 +426,7 @@ agri_guard/
 | **Submission Track** | Disaster Risk Reduction & Management / Early Warning Services |
 | **Built with** | Django, PostGIS, Mapbox, Solidity, OpenAI, Twilio |
 | **Team** | Jason (juangh123) — solo builder |
-| **Demo Video** | [docs/AgriGuard_Demo.mp4](docs/AgriGuard_Demo.mp4) — local copy; replace with the uploaded YouTube/Loom URL before final submission |
+| **Demo Video** | [AgriGuard_Demo.mp4](https://raw.githubusercontent.com/juangh123/agri_guard/main/docs/AgriGuard_Demo.mp4) |
 | **Presentation** | [`docs/AgriGuard_Presentation.pptx`](docs/AgriGuard_Presentation.pptx) |
 | **Certification** | N/A |
 | **Submission URL** | _Pending DoraHacks submission — update after the BUIDL is created_ |
