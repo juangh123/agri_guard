@@ -90,6 +90,7 @@ htmlcov/
 coverage.xml
 *.cover
 .cache
+test_all.cjs
 
 # ─── Docker / OS ─────────────────────────────────────────
 *.pid
