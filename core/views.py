@@ -10,6 +10,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.gis.geos import GEOSGeometry, Polygon
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from .models import Farm, DisasterEvent, RiskAlert, Claim
 from .serializers import FarmSerializer, DisasterEventSerializer, RiskAlertSerializer, ClaimSerializer
@@ -280,6 +281,20 @@ def farmer_register(request):
     phone_number = str(request.data.get('phone_number', '')).strip()
     geometry = request.data.get('geometry')
     wallet_address = request.data.get('wallet_address') or None
+    gnss_device_id = str(request.data.get('gnss_device_id', '')).strip()
+    gnss_accuracy_raw = request.data.get('gnss_accuracy_m')
+    gnss_captured_raw = request.data.get('gnss_captured_at')
+
+    try:
+        gnss_accuracy_m = float(gnss_accuracy_raw) if gnss_accuracy_raw not in (None, '') else None
+        if gnss_accuracy_m is not None and gnss_accuracy_m < 0:
+            return Response({'error': 'gnss_accuracy_m must be greater than or equal to 0.'}, status=status.HTTP_400_BAD_REQUEST)
+    except (TypeError, ValueError):
+        return Response({'error': 'gnss_accuracy_m must be a number.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    gnss_captured_at = parse_datetime(str(gnss_captured_raw)) if gnss_captured_raw else None
+    if gnss_captured_raw and not gnss_captured_at:
+        return Response({'error': 'gnss_captured_at must be an ISO 8601 datetime.'}, status=status.HTTP_400_BAD_REQUEST)
 
     if not username or not password:
         return Response({'error': 'Username and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -307,6 +322,9 @@ def farmer_register(request):
         phone_number=phone_number,
         wallet_address=wallet_address,
         geofence=geofence,
+        gnss_device_id=gnss_device_id,
+        gnss_accuracy_m=gnss_accuracy_m,
+        gnss_captured_at=gnss_captured_at,
     )
 
     refresh = RefreshToken.for_user(user)

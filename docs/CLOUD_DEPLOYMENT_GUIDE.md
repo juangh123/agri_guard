@@ -25,7 +25,7 @@ cd agri_guard
 ### 3. 配置环境变量
 `ash
 cp .env.example .env
-nano .env # 或使用 vim 编辑真实 API Key（OpenAI、Twilio、Mapbox 等）
+nano .env # 或使用 vim 编辑真实 API Key（OpenAI、Twilio、Web3 等）
 `
 
 ### 4. 一键启动全部服务

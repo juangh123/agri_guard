@@ -1,6 +1,6 @@
 # AgriGuard 评委演示脚本
 
-> 适用场景：SATNAV Africa Joint Programme Hackathon 现场/线上评审
+> 适用场景：GNSS 4 for Space Applications in Africa (G4-SAA) 现场/线上评审
 > 全程约 6–8 分钟 + 问答。每个环节含【操作】和【讲解要点】（英文为可直接使用的口述句）。
 
 ---

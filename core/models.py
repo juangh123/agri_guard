@@ -10,6 +10,9 @@ class Farm(models.Model):
     
     # GNSS Geofencing boundaries (New addition for parametric insurance)
     geofence = models.PolygonField(srid=4326, help_text="GNSS Geofencing boundaries (Polygon)")
+    gnss_device_id = models.CharField(max_length=100, blank=True, default='', help_text="Device or receiver used to capture the GNSS boundary")
+    gnss_accuracy_m = models.FloatField(null=True, blank=True, validators=[MinValueValidator(0.0)], help_text="Estimated horizontal accuracy in metres")
+    gnss_captured_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the GNSS boundary was captured")
     
     CROP_CHOICES = (
         ('maize', 'Maize (Corn)'),

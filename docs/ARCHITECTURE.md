@@ -6,7 +6,7 @@
 
 ## Architecture Overview
 
-AgriGuard follows a four-tier architecture: **Data Layer** (Space & IoT) → **Processing Layer** (Django + Celery) → **Application Layer** (Action & Finance) → **Frontend Layer** (React + Mapbox GL). Each component is annotated with actual code-level function and file references.
+AgriGuard follows a four-tier architecture: **Data Layer** (Space & IoT) → **Processing Layer** (Django + Celery) → **Application Layer** (Action & Finance) → **Frontend Layer** (React + MapLibre GL). Each component is annotated with actual code-level function and file references.
 
 ---
 
@@ -17,7 +17,7 @@ graph TD
     subgraph Data["🛰️ DATA LAYER — Space & IoT"]
         GNSS["Galileo GNSS<br/>Farm Geo-fencing<br/>(PolygonField, SRID 4326)"]
         NASA["NASA EONET API v3<br/>Severe Storms & Wildfires<br/>(Every 6h via Celery Beat)"]
-        GEOGLOWS["GEOGLOWS<br/>Hydrological Flood Forecast<br/>(Planned Integration)"]
+        GEOGLOWS["GEOGLOWS<br/>Hydrological Flood Forecast<br/>(Live map layer; engine ingest simulated)"]
         IOT["On-ground IoT Sensors<br/>Soil Moisture / Temperature<br/>(Validation Layer)"]
     end
 
@@ -30,14 +30,14 @@ graph TD
     end
 
     subgraph Application["📱 APPLICATION LAYER — Action & Finance"]
-        WS["Django Channels WebSocket<br/>Real-time Alert Push<br/>to Mapbox Dashboard"]
+        WS["Django Channels WebSocket<br/>Real-time Alert Push<br/>to MapLibre Dashboard"]
         SMS["Twilio SMS (USSD planned)<br/>Low-bandwidth Farmer Alert<br/>send_sms_alert()"]
         ORACLE["Parametric Oracle<br/>Severity >= Threshold → Payout<br/>trigger_analysis() API"]
         SC["Solidity Smart Contract<br/>AgriGuardParametric.sol<br/>createPolicy() / triggerPayout()"]
     end
 
-    subgraph Frontend["🖥️ FRONTEND LAYER — React + Mapbox GL"]
-        MAP["Mapbox GL Satellite Basemap<br/>Farm geofence + disaster hotspot overlays"]
+    subgraph Frontend["🖥️ FRONTEND LAYER — React + MapLibre GL"]
+        MAP["MapLibre GL Satellite Basemap<br/>Farm geofence + disaster hotspot overlays"]
         SKETCH["Disaster Simulator Toggle<br/>God Mode demo trigger"]
         CHARTS["Recharts Dashboard<br/>Pie: Safe vs Affected Farms<br/>Bar: Disaster Type Distribution"]
         CHAT["AI Chatbot (AgriBot)<br/>OpenAI-powered Farmer Q&A"]
@@ -50,7 +50,7 @@ graph TD
     end
 
     NASA -->|"fetch_nasa_eonet.py<br/>Point → 50km Buffer (Mercator)"| SIG
-    GEOGLOWS -.->|Planned| SIG
+    GEOGLOWS -.->|Live visualization; engine ingest simulated| SIG
     IOT -.->|Planned| SIG
     SIG -->|"process_disaster_event.delay()"| CELERY
     CELERY --> GIS

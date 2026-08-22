@@ -1,8 +1,15 @@
 # AgriGuard — Hackathon Submission Package
 
 > **Tagline:** Zero-Touch Parametric Insurance & Real-time Early Warning System for Africa's Smallholder Farmers, powered by GNSS, Earth Observation, and Web3.
+>
+> **Official Event:** GNSS 4 for Space Applications in Africa (G4-SAA) — SATNAV Africa Joint Programme
+> **Primary Challenge:** Challenge I — Drones for Emergency Applications / Disaster risk reduction and management
 
 ---
+
+Additional evidence:
+- [`docs/JUDGING_CRITERIA_MAPPING.md`](JUDGING_CRITERIA_MAPPING.md)
+- [`docs/GNSS_DATA_CAPTURE_AND_EVIDENCE.md`](GNSS_DATA_CAPTURE_AND_EVIDENCE.md)
 
 ## 1. English Pitch Script / Submission Abstract
 
@@ -34,9 +41,9 @@ We reduce claim settlement from 12 weeks to 3 minutes, cut verification costs by
 
 **Problem:** Climate disasters cost African agriculture $9.3B annually, yet insurance covers less than 3% of smallholder farmers. Traditional insurance fails because claim verification requires costly field surveys, settlements take 4–12 weeks, and premiums are unaffordable for subsistence farmers. Delayed liquidity post-disaster forces families into irreversible poverty.
 
-**Solution:** AgriGuard is a zero-touch parametric insurance platform that replaces human adjusters with satellite data. The system integrates **Galileo GNSS** for tamper-proof farm geo-fencing, **NASA EONET** for real-time disaster monitoring and **GEOGLOWS** for flood forecasting (planned), **PostGIS** for spatial intersection analysis, **Solidity smart contracts** for automated USDC payouts, and **Twilio SMS** for low-bandwidth farmer alerts (USSD planned). When satellite data confirms a disaster intersects a farmer's GNSS-verified plot, a smart contract triggers an instant payout — no human intervention required. An OpenAI-powered damage estimator generates automated assessment reports in parallel.
+**Solution:** AgriGuard is a zero-touch parametric insurance platform that replaces human adjusters with satellite data. The system integrates **Galileo GNSS** for tamper-proof farm geo-fencing, **NASA EONET** for real-time disaster monitoring and **GEOGLOWS** for live flood-forecast visualization (automated claim-trigger ingestion simulated in the demo), **PostGIS** for spatial intersection analysis, **Solidity smart contracts** for automated USDC payouts, and **Twilio SMS** for low-bandwidth farmer alerts (USSD planned). When satellite data confirms a disaster intersects a farmer's GNSS-verified plot, a smart contract triggers an instant payout — no human intervention required. An OpenAI-powered damage estimator generates automated assessment reports in parallel.
 
-**Innovation:** We are the first to close the loop from satellite observation to automated financial resilience for underserved farmers. GNSS geo-fencing eliminates fraud, while parametric triggers remove administrative overhead. The platform supports English, French, and Kiswahili, with USSD fallback planned for farmers without smartphones. A real-time Mapbox dashboard visualizes all active disasters, affected farms, and payout status via WebSocket streaming.
+**Innovation:** We are the first to close the loop from satellite observation to automated financial resilience for underserved farmers. GNSS geo-fencing eliminates fraud, while parametric triggers remove administrative overhead. The platform supports English, French, and Kiswahili, with USSD fallback planned for farmers without smartphones. A real-time MapLibre/Esri dashboard visualizes all active disasters, affected farms, and payout status via WebSocket streaming.
 
 **Impact:** Claim settlement drops from 12 weeks to under 3 minutes. Verification costs approach $0. Our Year-3 target: 50,000+ protected farmers, 60% reduction in post-disaster bankruptcy rates via immediate USDC liquidity, and ~$3M ARR from a $25 average annual micro-premium across 120,000 farmers.
 
@@ -49,7 +56,7 @@ graph TD
     subgraph Data["🛰️ DATA LAYER — Space & IoT"]
         GNSS["Galileo GNSS<br/>Farm Geo-fencing<br/>(PolygonField, SRID 4326)"]
         NASA["NASA EONET API v3<br/>Severe Storms & Wildfires<br/>(Every 6h via Celery Beat)"]
-        GEOGLOWS["GEOGLOWS<br/>Hydrological Flood Forecast<br/>(Planned Integration)"]
+        GEOGLOWS["GEOGLOWS<br/>Hydrological Flood Forecast<br/>(Live map layer; engine ingest simulated)"]
         IOT["On-ground IoT Sensors<br/>Soil Moisture / Temperature<br/>(Validation Layer)"]
     end
 
@@ -62,14 +69,14 @@ graph TD
     end
 
     subgraph Application["📱 APPLICATION LAYER — Action & Finance"]
-        WS["Django Channels WebSocket<br/>Real-time Alert Push<br/>to Mapbox Dashboard"]
+        WS["Django Channels WebSocket<br/>Real-time Alert Push<br/>to MapLibre Dashboard"]
         SMS["Twilio SMS (USSD planned)<br/>Low-bandwidth Farmer Alert<br/>send_sms_alert()"]
         ORACLE["Parametric Oracle<br/>Severity >= Threshold → Payout<br/>trigger_analysis() API"]
         SC["Solidity Smart Contract<br/>AgriGuardParametric.sol<br/>createPolicy() / triggerPayout()"]
     end
 
-    subgraph Frontend["🖥️ FRONTEND LAYER — React + Mapbox GL"]
-        MAP["Mapbox GL Satellite Basemap<br/>Farm geofence + disaster hotspot overlays"]
+    subgraph Frontend["🖥️ FRONTEND LAYER — React + MapLibre GL"]
+        MAP["MapLibre GL Satellite Basemap<br/>Farm geofence + disaster hotspot overlays"]
         SKETCH["Disaster Simulator Toggle<br/>God Mode demo trigger"]
         CHARTS["Recharts Dashboard<br/>Pie: Safe vs Affected Farms<br/>Bar: Disaster Type Distribution"]
         CHAT["AI Chatbot (AgriBot)<br/>OpenAI-powered Farmer Q&A"]
@@ -82,7 +89,7 @@ graph TD
     end
 
     NASA -->|"fetch_nasa_eonet.py<br/>Point → 50km Buffer (Mercator)"| SIG
-    GEOGLOWS -.->|Planned| SIG
+    GEOGLOWS -.->|Live visualization; engine ingest simulated| SIG
     IOT -.->|Planned| SIG
     SIG -->|"process_disaster_event.delay()"| CELERY
     CELERY --> GIS
@@ -121,7 +128,7 @@ graph TD
 | Year | Key Milestones |
 |:---|:---|
 | **Year 1** | Pilot with 2 insurance partners in Kenya + Nigeria. Onboard 5,000 farmers. Validate NASA EONET → Smart Contract trigger pipeline. |
-| **Year 2** | Scale to 25,000 farmers. Add GEOGLOWS flood forecasting integration. Launch USSD fallback channel. |
+| **Year 2** | Scale to 25,000 farmers. Automate GEOGLOWS claim-trigger ingestion. Launch USSD fallback channel. |
 | **Year 3** | 50,000+ farmers across East & West Africa. Integrate IoT soil sensor validation layer. 60% reduction in post-disaster bankruptcy rates. |
 
 ### 3.3 Market Size Estimation
@@ -186,7 +193,7 @@ SOM (Serviceable Obtainable Market — 3-Year Target)
 │                                                                   │
 │  ⑤ NOTIFICATION & REPORTING                                      │
 │     Twilio SMS → Farmer's phone (USSD fallback planned)          │
-│     WebSocket → Mapbox dashboard real-time update                │
+│     WebSocket → MapLibre dashboard real-time update              │
 │     OpenAI → AI damage estimation report                         │
 │                                                                   │
 └─────────────────────────────────────────────────────────────────┘
@@ -252,7 +259,7 @@ def process_disaster_event(event_id):
     1. PostGIS spatial query: find farms inside the disaster polygon
     2. Parametric condition: if severity >= threshold, auto-payout
     3. Web3 smart contract execution (real ETH + mock fallback)
-    4. WebSocket real-time push to Mapbox dashboard
+    4. WebSocket real-time push to MapLibre dashboard
     5. Async AI damage report generation
     6. SMS notification to farmer via Twilio
     """
@@ -485,15 +492,15 @@ class DisasterEventViewSet(viewsets.ModelViewSet):
 
 | Layer | Technology | Purpose |
 |:---|:---|:---|
-| **Space Data** | Galileo GNSS, NASA EONET API v3, GEOGLOWS | Geo-fencing, real-time disaster monitoring, flood forecasting |
+| **Space Data** | Galileo GNSS, NASA EONET API v3, GEOGLOWS | Geo-fencing, real-time disaster monitoring, flood visualization |
 | **Spatial DB** | PostgreSQL 15 + PostGIS 3.3 | `ST_Intersects` spatial queries (farm PolygonField ∩ disaster PolygonField) |
 | **Backend** | Django 4.2 + Django REST Framework + Django Channels 4.0 | REST API, WebSocket, GeoJSON serialization |
 | **Async** | Celery 5.3 + Redis 7 | Task queue, scheduled NASA data fetch (every 6h) |
 | **Blockchain** | Solidity ^0.8.0, Web3.py 6.15 | Parametric smart contract, USDC/ETH payout execution |
 | **AI** | OpenAI GPT-3.5 Turbo | Damage estimation reports, farmer chatbot (AgriBot) |
 | **Messaging** | Twilio 8.11 (SMS), USSD planned | Low-bandwidth farmer alerts |
-| **Frontend** | React 19 + Vite 8 + Mapbox GL (react-map-gl) | Satellite dashboard, farm geofence and disaster hotspot overlays |
-| **Visualization** | Recharts 3.9, Mapbox map layers | Pie/bar charts, real-time disaster and alert overlays |
+| **Frontend** | React 19 + Vite 8 + MapLibre GL (react-map-gl) | Satellite dashboard, farm geofence and disaster hotspot overlays |
+| **Visualization** | Recharts 3.9, MapLibre/Esri map layers | Pie/bar charts, real-time disaster and alert overlays |
 | **i18n** | react-i18next | English / Français / Kiswahili |
 | **Deploy** | Docker Compose (5 services) | db, redis, web, celery, frontend |
 

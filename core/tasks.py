@@ -175,7 +175,13 @@ def process_disaster_event(self, event_id, is_simulation=False):
                 payment_succeeded = False
                 
                 # Generate evidence hash before creating the claim.
-                evidence_data = f"{farm.id}-{event.id}-{event.start_date.isoformat()}-{confidence_pct}"
+                gnss_evidence = "|".join([
+                    str(farm.id),
+                    farm.gnss_device_id or "unset",
+                    str(farm.gnss_accuracy_m) if farm.gnss_accuracy_m is not None else "unset",
+                    farm.gnss_captured_at.isoformat() if farm.gnss_captured_at else "unset",
+                ])
+                evidence_data = f"{farm.id}-{event.id}-{event.start_date.isoformat()}-{confidence_pct}-{gnss_evidence}"
                 evidence_hash = hashlib.sha256(evidence_data.encode()).hexdigest()
 
                 # Create the claim first so the smart-contract call can use the real claim id.

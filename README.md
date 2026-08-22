@@ -2,7 +2,7 @@
 
 > **Parametric crop insurance for smallholder farmers — automated by satellites, settled on-chain, delivered via SMS in minutes.**
 
-[![Hackathon](https://img.shields.io/badge/Hackathon-SATNAV%20Africa%20Joint%20Programme-blueviolet)](https://dorahacks.io/)
+[![Hackathon](https://img.shields.io/badge/Hackathon-GNSS%204%20for%20Space%20Applications%20in%20Africa-blueviolet)](https://dorahacks.io/hackathon/satnav/detail)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Django](https://img.shields.io/badge/Django-4.2-success)](https://www.djangoproject.com/)
 [![PostGIS](https://img.shields.io/badge/PostGIS-3.3-orange)](https://postgis.net/)
@@ -24,6 +24,8 @@
 - [📺 Demo & Presentation](#-demo--presentation)
 - [🧪 Testing the Trigger Pipeline](#-testing-the-trigger-pipeline)
 - [📊 Impact & Market](#-impact--market)
+- [🏆 Judging Criteria Mapping](#-judging-criteria-mapping)
+- [🛰️ GNSS Data & Evidence](#%EF%B8%8F-gnss-data--evidence)
 - [🌍 UN Sustainable Development Goals](#-un-sustainable-development-goals)
 - [🗂️ Repository Layout](#%EF%B8%8F-repository-layout)
 - [👥 Team & Certification](#-team--certification)
@@ -88,7 +90,7 @@ Traditional insurance is broken:
 │   DATA       │    │  PROCESSING  │    │ APPLICATION  │    │  FRONTEND    │
 │              │    │              │    │              │    │              │
 │ • NASA EONET │───>│ • Celery     │───>│ • Django     │<──>│ • React 19 + │
-│ • NOAA VIIRS │    │ • PostGIS    │    │ • DRF API    │    │   Mapbox GL  │
+│ • VIIRS      │    │ • PostGIS    │    │ • DRF API    │    │  MapLibre GL │
 │ • Sentinel-1 │    │ • Django Sig │    │ • Channels   │    │ react-map-gl │
 └──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
                                               │
@@ -148,7 +150,7 @@ def process_disaster_event(event_id):
 Django Channels pushes every payout to connected dashboards in <100ms.
 
 ### 2. **Interactive Geospatial Visualization**
-Mapbox GL map (react-map-gl) rendering farm geofences and live disaster polygons — see disaster zones in context.
+MapLibre GL map (react-map-gl) rendering farm geofences and live disaster polygons — see disaster zones in context.
 
 ### 3. **AI Damage Assessment**
 GPT-3.5 generates crop loss estimates + recovery plans from satellite data.
@@ -177,8 +179,8 @@ Farmers receive claim updates via SMS (Twilio, with Mock fallback). A USSD chann
 | **AI** | OpenAI GPT-3.5-turbo |
 | **SMS** | Twilio API (with Mock fallback) |
 | **Blockchain** | Solidity + Web3.py (Ethereum-compatible) |
-| **Frontend** | React 19 + Vite + Mapbox GL (react-map-gl) |
-| **Geospatial** | PostGIS spatial queries + Mapbox map rendering |
+| **Frontend** | React 19 + Vite + MapLibre GL (react-map-gl) |
+| **Geospatial** | PostGIS spatial queries + MapLibre/Esri map rendering |
 | **i18n** | react-i18next (EN/FR/SW) — `frontend/src/i18n/config.js` |
 | **Container** | Docker + Docker Compose |
 | **API** | DRF REST: `/api/farms/` · `/api/events/` · `/api/alerts/` · `/api/claims/` |
@@ -287,7 +289,7 @@ A self-contained HTML simulation of the full pipeline — login → dashboard �
 | Step | Screenshot | What it shows |
 |:---:|:---|:---|
 | 1 | ![Login](docs/screenshots/01_login.png) | Authentication screen |
-| 2 | ![Dashboard](docs/screenshots/02_dashboard.png) | Mapbox map + 8 farms + live disaster layers |
+| 2 | ![Dashboard](docs/screenshots/02_dashboard.png) | MapLibre/Esri map + 8 farms + live disaster layers |
 | 3 | ![Disaster](docs/screenshots/03_disaster_config.png) | Draw-and-configure disaster event |
 | 4 | ![Pipeline](docs/screenshots/04_pipeline_start.png) | 6-step parametric insurance pipeline |
 | 5 | ![Payout](docs/screenshots/05_payout.png) | Smart contract payout (3 farms × $1,500) |
@@ -361,6 +363,21 @@ Mock SMS Sent Successfully!
 
 ---
 
+## 🏆 Judging Criteria Mapping
+
+AgriGuard maps each official G4-SAA judging criterion to concrete evidence:
+`Originality`, `Sustainability`, `Significance`, `Applicability and Transferability`, `Market Potential`, and `Impact`.
+
+See [`docs/JUDGING_CRITERIA_MAPPING.md`](docs/JUDGING_CRITERIA_MAPPING.md).
+
+## 🛰️ GNSS Data & Evidence
+
+GNSS farm boundaries are stored as WGS84 polygons, spatially intersected in PostGIS, and linked to claims through SHA-256 evidence hashes. The production roadmap extends this with accuracy metadata and raw trace ingestion.
+
+See [`docs/GNSS_DATA_CAPTURE_AND_EVIDENCE.md`](docs/GNSS_DATA_CAPTURE_AND_EVIDENCE.md).
+
+---
+
 ## 🌍 UN Sustainable Development Goals
 
 | SDG | Alignment |
@@ -388,7 +405,7 @@ agri_guard/
 │   └── management/commands/
 │       └── fetch_nasa_eonet.py # Celery Beat: fetch NASA EONET every 6 hours
 ├── contracts/                  # Reference Solidity contract (AgriGuardParametric.sol)
-├── frontend/                   # React 19 + Mapbox app
+├── frontend/                   # React 19 + MapLibre/Esri app
 │   ├── src/pages/
 │   │   ├── Login.jsx
 │   │   ├── Register.jsx        # Farmer onboarding (GNSS + phone)
@@ -403,6 +420,8 @@ agri_guard/
 │   ├── TRIGGER_LOGIC_AND_CODE.md
 │   ├── IMPACT_AND_MARKET.md
 │   ├── TECH_STACK.md
+│   ├── JUDGING_CRITERIA_MAPPING.md
+│   ├── GNSS_DATA_CAPTURE_AND_EVIDENCE.md
 │   ├── pitch/                  # Pitch materials
 │   │   ├── PITCH.md            # 90s pitch + 250-word abstract
 │   │   ├── PITCH_SCRIPT.md
@@ -422,9 +441,9 @@ agri_guard/
 
 | | |
 |:---|:---|
-| **Hackathon** | SATNAV Africa Joint Programme — GNSS for Disaster Risk Reduction |
-| **Submission Track** | Disaster Risk Reduction & Management / Early Warning Services |
-| **Built with** | Django, PostGIS, Mapbox, Solidity, OpenAI, Twilio |
+| **Hackathon** | GNSS 4 for Space Applications in Africa (G4-SAA) — SATNAV Africa Joint Programme |
+| **Submission Track** | Challenge I — Drones for Emergency Applications / Disaster risk reduction and management |
+| **Built with** | Django, PostGIS, MapLibre, Esri Living Atlas, Solidity, OpenAI, Twilio |
 | **Team** | Jason (juangh123) — solo builder |
 | **Demo Video** | [AgriGuard_Demo.mp4](https://raw.githubusercontent.com/juangh123/agri_guard/main/docs/AgriGuard_Demo.mp4) |
 | **Presentation** | [`docs/AgriGuard_Presentation.pptx`](docs/AgriGuard_Presentation.pptx) |
@@ -452,8 +471,8 @@ MIT — see [`LICENSE`](LICENSE)
 ## 🙏 Acknowledgments
 
 - **NASA EONET** for the open disaster event stream
-- **Mapbox** for the interactive mapping stack
-- **SATNAV Africa Joint Programme** for organising the hackathon
+- **MapLibre** and **Esri Living Atlas / Africa GeoPortal** for the interactive mapping stack
+- **GNSS 4 for Space Applications in Africa (G4-SAA) / SATNAV Africa Joint Programme** for organising the hackathon
 - **OpenAI** for accessible AI
 - **Twilio** for the SMS infrastructure
 

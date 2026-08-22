@@ -19,7 +19,7 @@
 - **Visuals:** Simple diagram showing Satellite -> Backend Engine -> Action.
 - **Key Message:** We fuse multi-source Earth Observation (EO) data with Galileo GNSS.
 - **Data Highlight:** Mention specific sources to impress judges.
-  - *GEOGLOWS ECMWF* for flood prediction (规划中).
+  - *GEOGLOWS ECMWF* for flood prediction (live map layer; demo trigger uses simulated metrics).
   - *VIIRS Thermal Hotspots* for wildfire detection.
   - *Galileo GNSS* for high-precision farm geo-fencing.
 
@@ -29,7 +29,7 @@
   1. Show the farm mapped with a GNSS polygon.
   2. Explain the threshold rules (e.g., Water level > 2.5m).
   3. *Execute Mock Script* behind the scenes.
-  4. Point to screen as alert pops up. "We just detected a critical flood via GEOGLOWS (规划中)..."
+  4. Point to screen as alert pops up. "We just detected a critical flood via the GEOGLOWS/VIIRS trigger pipeline..."
   5. Show the automated claim generation and high confidence score.
   6. *Hold up phone* to show SMS alert received.
 

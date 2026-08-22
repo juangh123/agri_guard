@@ -31,7 +31,7 @@
 │                                                                   │
 │  ⑤ NOTIFICATION & REPORTING                                      │
 │     Twilio SMS → Farmer's phone (USSD fallback planned)          │
-│     WebSocket → Mapbox dashboard real-time update                │
+│     WebSocket → MapLibre dashboard real-time update              │
 │     OpenAI → AI damage estimation report                         │
 │                                                                   │
 └─────────────────────────────────────────────────────────────────┘
@@ -117,7 +117,7 @@ def process_disaster_event(event_id):
     1. PostGIS spatial query: find farms inside the disaster polygon
     2. Parametric condition: if severity >= threshold, auto-payout
     3. Web3 smart contract execution (real ETH + mock fallback)
-    4. WebSocket real-time push to Mapbox dashboard
+    4. WebSocket real-time push to MapLibre dashboard
     5. Async AI damage report generation
     6. SMS notification to farmer via Twilio
     """

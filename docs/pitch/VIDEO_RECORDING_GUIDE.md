@@ -26,7 +26,7 @@
 ---
 
 ### [0:40 - 1:20] 空间地理围栏与灾害监测 (GNSS Geo-fencing & Monitoring)
-> **画面建议**：切换到浏览器 http://localhost:5173/，展示 Mapbox 卫星底图上的农场高亮多边形。
+> **画面建议**：切换到浏览器 http://localhost:5173/，展示 MapLibre/Esri 卫星底图上的农场高亮多边形。
 > 
 - **EN**: "Here is our live dashboard. Using Galileo GNSS, we establish tamper-proof geo-fences for each smallholder farm plot. In the background, our backend continuously streams real-time Earth Observation data from NASA EONET and hydrological models. When severe weather hits, our spatial PostGIS engine instantly calculates intersections between disaster perimeters and farm boundaries—zero paperwork required."
 - **ZH**: “这是实时控制台。通过 Galileo GNSS，我们为每个小农土地建立防篡改的地理围栏。后台持续接入 NASA EONET 卫星灾害流。当极端天气发生时，PostGIS 空间引擎瞬间完成交集计算——无需任何人工填表。”

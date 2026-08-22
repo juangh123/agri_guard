@@ -6,7 +6,10 @@ class FarmSerializer(GeoFeatureModelSerializer):
     class Meta:
         model = Farm
         geo_field = "geofence"
-        fields = ['id', 'name', 'owner', 'crop_type', 'phone_number', 'wallet_address', 'created_at']
+        fields = [
+            'id', 'name', 'owner', 'crop_type', 'phone_number', 'wallet_address',
+            'gnss_device_id', 'gnss_accuracy_m', 'gnss_captured_at', 'created_at'
+        ]
         read_only_fields = ['owner']
 
 class DisasterEventSerializer(GeoFeatureModelSerializer):

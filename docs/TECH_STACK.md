@@ -8,7 +8,7 @@
 |:---|:---|:---|:---|
 | **Space Data** | Galileo GNSS | — | Farm geo-fencing, tamper-proof location verification (WGS84 SRID 4326) |
 | | NASA EONET API v3 | — | Real-time severe storms & wildfires monitoring (Celery Beat every 6h) |
-| | GEOGLOWS | — | Hydrological flood forecasting (planned integration) |
+| | GEOGLOWS | — | Live flood-forecast visualization; engine ingest simulated in demo |
 | **Spatial Database** | PostgreSQL + PostGIS | 15 / 3.3 | `ST_Intersects` spatial queries: Farm PolygonField ∩ DisasterEvent PolygonField |
 | **Backend Framework** | Django | 4.2.7 | Web framework, ORM, admin interface, GeoJSON serialization |
 | | Django REST Framework | 3.14 | REST API, ViewSets, authentication |
@@ -24,7 +24,7 @@
 | **Messaging** | Twilio | 8.11 | SMS alerts to farmers (USSD planned for non-smartphone users) |
 | **Frontend Framework** | React | 19.2 | Component-based UI |
 | | Vite | 8 | Build tool and dev server |
-| **Geospatial Visualization** | Mapbox GL | 3.26 | Satellite basemap, farm geofence and disaster hotspot overlays |
+| **Geospatial Visualization** | MapLibre GL | 5.24 | Satellite basemap, farm geofence and disaster hotspot overlays |
 | **Charts** | Recharts | 3.9 | Pie charts (safe vs affected farms), bar charts (disaster type distribution) |
 | **Internationalization** | react-i18next / i18next | — | English, Français, Kiswahili |
 | **UI** | Lucide React | — | Icon library |
@@ -77,7 +77,7 @@ docker-compose.yml
 | `core/management/commands/fetch_nasa_eonet.py` | NASA EONET data ingestion (Celery Beat) |
 | `config/celery.py` | Celery app config + beat schedule |
 | `config/settings.py` | Django settings (PostGIS, JWT, Celery, Twilio, OpenAI) |
-| `frontend/src/pages/Dashboard.jsx` | Mapbox GL map, charts, alert stream, chatbot |
+| `frontend/src/pages/Dashboard.jsx` | MapLibre/Esri map, charts, alert stream, chatbot |
 | `frontend/src/pages/Register.jsx` | Farm registration with browser GPS |
 | `frontend/src/i18n/config.js` | English/Français/Kiswahili translations |
 | `docker-compose.yml` | 5-service container orchestration |

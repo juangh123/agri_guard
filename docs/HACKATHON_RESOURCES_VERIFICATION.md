@@ -1,6 +1,6 @@
 # AgriGuard Hackathon Resources & Living Atlas Cross-Verification Matrix
 
-This matrix demonstrates AgriGuard's deep alignment with the **SATNAV Africa Joint Programme Hackathon** official datasets, ArcGIS Living Atlas layers, Africa GeoPortal capabilities, and Pan-African Startup Case Studies.
+This matrix demonstrates AgriGuard's alignment with the **GNSS 4 for Space Applications in Africa (G4-SAA)** official datasets, ArcGIS Living Atlas layers, Africa GeoPortal capabilities, and Pan-African Startup Case Studies.
 
 ---
 
@@ -9,13 +9,13 @@ This matrix demonstrates AgriGuard's deep alignment with the **SATNAV Africa Joi
 | Category | Hackathon Official Resource | Project Implementation & Technical Integration | Value Proposition & Impact |
 |:---|:---|:---|:---|
 | **Satellite Imagery** | **The Africa GeoPortal**<br/>`https://www.africageoportal.com/` | Integrated into `frontend/src/utils/mapStyles.js` as the default satellite base layer (`SATELLITE_MAP_STYLE`). | Provides high-resolution African agricultural coverage without proprietary token dependencies. |
-| **Fire & Thermal** | **VIIRS Thermal Hotspots & Fire Activity**<br/>`https://arcg.is/miur8` | **Live deployed** in `frontend/src/utils/arcGisLayers.js` + `MapView.jsx` as a current-map-extent FeatureServer query. Also used by `ParametricClaimEngine` for geofence intersection. | Instant wildfire detection (confidence > 80%) triggers automated USDC micro-payouts in <3 minutes. |
-| **Hydrology / Flood** | **GEOGLOWS 2.0 ECMWF Streamflow (10-Day Forecast)**<br/>`https://arcg.is/1nH0yj` | **Live deployed** in `MapView.jsx` as an official forecast polyline layer, querying the current map extent. | Predictive flood parametric claims trigger before catastrophic crop root rot sets in. |
-| **Extreme Climate** | **Global Yearly Temperature Anomaly**<br/>`https://arcg.is/1jvfqS0` | Modeled in `core/engine.py` (`DROUGHT` trigger: NDWI deficit + temperature anomalies). | Heat-wave & persistent drought triggers index insurance compensation for smallholders. |
+| **Fire & Thermal** | **VIIRS Thermal Hotspots & Fire Activity**<br/>`https://arcg.is/miur8` | **Live deployed** in `frontend/src/utils/arcGisLayers.js` + `MapView.jsx` as a current-map-extent FeatureServer query. The demo pipeline uses the same event model and simulated EO metrics; direct FeatureServer-to-engine ingestion is a production roadmap item. | Instant wildfire detection (confidence > 80%) triggers automated USDC micro-payouts in <3 minutes. |
+| **Hydrology / Flood** | **GEOGLOWS 2.0 ECMWF Streamflow (10-Day Forecast)**<br/>`https://arcg.is/1nH0yj` | **Live deployed** in `MapView.jsx` as an official forecast polyline layer, querying the current map extent. Automated claim-trigger ingestion is simulated in the demo and listed for production integration. | Predictive flood parametric claims trigger before catastrophic crop root rot sets in. |
+| **Extreme Climate** | **Global Yearly Temperature Anomaly**<br/>`https://arcg.is/1jvfqS0` | Available official Living Atlas layer for future validation. The current demo visualizes anomaly thresholds on the dashboard; the backend drought rule uses NDWI from simulated EO metrics. | Heat-wave & persistent drought triggers index insurance compensation for smallholders. |
 | **Hydrology / Gauges** | **Live Stream Gauges**<br/>`https://arcg.is/15zKr1` | **Live deployed** in `MapView.jsx` as an official FeatureServer point layer, with status/flow-based symbology. | Ground-truths flood model alerts with real gauge readings where station coverage exists. |
 | **Community GIS** | **OpenStreetMap Layers for Africa**<br/>`https://livingatlas.arcgis.com/...` | Integrated into frontend map view switcher (`OPEN_MAP_STYLE`) for vector boundaries. | Precise administrative boundaries and rural road network contextualization. |
-| **Disaster Response** | **FAO Data in Emergencies (DIEM-EVE)**<br/>`https://data-in-emergencies.fao.org/` | Aligned with UN SDG 2 (Zero Hunger) & SDG 13 (Climate Action) damage assessment thresholds. | Standardizes damage estimation metrics with international humanitarian aid agencies. |
-| **Economic Market** | **World Bank Real-Time Commodity Prices**<br/>`https://data.humdata.org/...` | Calibrates average policy payout ($25 - $150 USDC) based on East African maize/coffee price indexes. | Ensures dynamic payouts match actual seasonal replacement seed and fertilizer costs. |
+| **Disaster Response (supplementary)** | **FAO Data in Emergencies (DIEM-EVE)**<br/>`https://data-in-emergencies.fao.org/` | Aligned with UN SDG 2 (Zero Hunger) & SDG 13 (Climate Action) damage assessment thresholds; planned as a future benchmark source. | Standardizes damage estimation metrics with international humanitarian aid agencies. |
+| **Economic Market (supplementary)** | **World Bank Real-Time Commodity Prices**<br/>`https://data.humdata.org/...` | Used as a future calibration source for crop replacement costs; current demo uses static policy pricing. | Supports dynamic payouts matching seasonal replacement seed and fertilizer costs. |
 
 ---
 
@@ -30,7 +30,7 @@ This matrix demonstrates AgriGuard's deep alignment with the **SATNAV Africa Joi
 Implementation notes:
 - `frontend/src/utils/arcGisLayers.js` stores the exact public FeatureServer query URLs, output fields, ordering, and Legend metadata.
 - `MapView.jsx` queries each enabled layer by the current visible bounding box, so users always see real data for the active extent instead of mock markers.
-- All endpoints are public, CORS-enabled, and require no API key or Mapbox token.
+- All endpoints are public, CORS-enabled, and require no API key or map token.
 - GEOGLOWS and VIIRS returned live features during East Africa bbox verification. Live Stream Gauges coverage is dense in the United States and may be sparse in some African extents; the layer remains available for global validation.
 
 ---
