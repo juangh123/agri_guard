@@ -4,6 +4,8 @@ import { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 
+import { ensureDemoSession, hasStoredSession } from './utils/auth';
+
 // Lazy load route pages for performance & code-splitting
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Register = lazy(() => import('./pages/Register'));
@@ -20,13 +22,27 @@ axios.interceptors.request.use((config) => {
   return Promise.reject(error);
 });
 
-// On 401 responses (expired/invalid token) clear stored credentials and go to /login.
-// Token endpoint failures are excluded — the silent demo login below must not
-// bounce the app to /login when the backend is unreachable.
+// On 401 responses, first give an unauthenticated request the chance to recover:
+// the dashboard renders before the silent demo login finishes, so a cold-start
+// fetch or the WebSocket bootstrap can arrive without a token. Only when a
+// request that *did* carry a token is rejected do we clear it and send the user
+// to /login — that keeps offline mode and expired sessions sane.
 axios.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401 && !error.config?.url?.includes('/token/')) {
+  async (error) => {
+    const config = error.config;
+    const isTokenEndpoint = config?.url?.includes('/token/');
+    const sentNoToken = !config?.headers?.Authorization;
+
+    if (error.response?.status === 401 && !isTokenEndpoint) {
+      if (sentNoToken && !config?.__demoRetried) {
+        const token = await ensureDemoSession();
+        if (token) {
+          config.__demoRetried = true;
+          return axios(config);
+        }
+      }
+
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('token'); // legacy key cleanup
@@ -38,8 +54,6 @@ axios.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
 
 // Fallback spinner while lazily loading pages
 const PageLoader = () => (
@@ -56,13 +70,9 @@ function App() {
   // the full disaster pipeline (simulate endpoint requires auth). Read-only
   // data still loads if this fails (offline / backend down).
   useEffect(() => {
-    if (localStorage.getItem('access_token')) return;
-    axios.post(`${API_BASE_URL}/token/`, { username: 'demo', password: 'demo123' })
-      .then((res) => {
-        localStorage.setItem('access_token', res.data.access);
-        localStorage.setItem('refresh_token', res.data.refresh);
-      })
-      .catch(() => { /* offline demo mode — non-fatal */ });
+    if (hasStoredSession()) return;
+    // Offline demo mode is non-fatal: ensureDemoSession resolves to null.
+    ensureDemoSession();
   }, []);
 
   return (

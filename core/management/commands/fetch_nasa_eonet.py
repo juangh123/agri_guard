@@ -10,7 +10,7 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         self.stdout.write("Fetching live disaster data from NASA EONET...")
         
-        # We limit to severe storms and wildfires for demonstration
+        # Limit to the two hazards already supported by the parametric engine.
         url = "https://eonet.gsfc.nasa.gov/api/v3/events?status=open&category=severeStorms,wildfires&limit=10"
         
         try:
@@ -70,11 +70,14 @@ class Command(BaseCommand):
 
             # Ensure we don't duplicate events (checking by external_id)
             if not DisasterEvent.objects.filter(external_id=external_id).exists():
-                # Fill threshold-adjacent default EO metrics (engine-side keys)
-                if event_type == 'WILDFIRE':
-                    eo_metrics = {'fire_area_ha': 6.0, 'source': 'NASA EONET'} # maize threshold: 5.0 ha
-                else: # FLOOD
-                    eo_metrics = {'water_level_m': 2.6, 'duration_days': 3, 'rain_anomaly': True, 'source': 'NASA EONET'} # maize threshold: 2.5m / 3d
+                # EONET provides event locations and metadata, not verified water-depth,
+                # fire-area, or index values. Never invent threshold metrics here:
+                # doing so would trigger real-looking payouts without evidence.
+                eo_metrics = {
+                    'source': 'NASA EONET',
+                    'ingestion_mode': 'event-footprint',
+                    'threshold_metrics_verified': False,
+                }
                 new_event = DisasterEvent.objects.create(
                     title=f"NASA: {title}",
                     external_id=external_id,

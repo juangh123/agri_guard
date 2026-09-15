@@ -196,19 +196,24 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
 
   const timelineDates = useMemo(() => {
     const relDays = [30, 25, 20, 15, 10, 5];
-    const dates = ["2026-07-20", "2026-07-25", "2026-07-30", "2026-08-04", "2026-08-09", "2026-08-14"];
     const labels = ["T-30d", "T-25d", "T-20d", "T-15d", "T-10d", "T-5d"];
+    const now = new Date();
+    const dateAtOffset = (daysAgo) => {
+      const date = new Date(now);
+      date.setDate(date.getDate() - daysAgo);
+      return date.toISOString().slice(0, 10);
+    };
     const rows = scenarioDef.points.map((p, i) => ({
       day: t("ts_day_prefix", { days: relDays[i] }),
       label: labels[i],
-      date: dates[i],
+      date: dateAtOffset(relDays[i]),
       ndvi: `${p.v} (${t(p.q)})`,
       riskKey: p.riskKey,
     }));
     rows.push({
       day: t("ts_today"),
       label: t("ts_now"),
-      date: "2026-08-19",
+      date: dateAtOffset(0),
       ndvi: isDisasterActive
         ? `${scenarioDef.activeV} (${t(scenarioDef.activeQ)})`
         : `${scenarioDef.idleV} (${t(scenarioDef.idleQ)})`,
@@ -278,8 +283,12 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
   );
 
   useEffect(() => {
-    // Fit the viewport to ALL farm parcels so no insured plot is off-screen
-    const bounds = collectionBounds(farmData);
+    // Center the operational view on the farm highlighted in the map status bar.
+    // A nationwide portfolio fit makes smallholder polygons invisible at this scale.
+    const bounds = collectionBounds({
+      type: "FeatureCollection",
+      features: primaryFeature ? [primaryFeature] : [],
+    });
     if (!bounds) return;
     const map = mapRef.current;
     if (mapReady && map) {
@@ -291,7 +300,7 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
       const center = [(bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2];
       setViewState((prev) => ({ ...prev, longitude: center[0], latitude: center[1] }));
     }
-  }, [farmData, mapReady]);
+  }, [primaryFeature, mapReady]);
 
   const fetchArcGISLayer = useCallback(
     async (layerKey) => {
@@ -442,7 +451,7 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
       {onSimulateDisaster && (
         <div className="absolute top-4 right-14 z-10">
           <button
-            onClick={onSimulateDisaster}
+            onClick={() => onSimulateDisaster(activeScenarioKey)}
             disabled={isSimulating}
             className={`px-4 py-2 rounded-full font-bold shadow-lg flex items-center gap-2 transition-all disabled:cursor-not-allowed disabled:opacity-70 ${
               isDisasterActive
@@ -603,11 +612,20 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
             }}
           />
           <Layer
+            id="farm-fence-casing"
+            type="line"
+            paint={{
+              "line-color": "#F8FAFC",
+              "line-width": 7,
+              "line-opacity": 0.95
+            }}
+          />
+          <Layer
             id="farm-fence-line"
             type="line"
             paint={{
-              "line-color": isDisasterActive ? "#EF4444" : "#15803D",
-              "line-width": 3
+              "line-color": isDisasterActive ? "#EF4444" : "#16A34A",
+              "line-width": 4
             }}
           />
           {/* Farm name labels — visible at a glance for insurers & farmers */}

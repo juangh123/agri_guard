@@ -5,13 +5,13 @@ def ask_agri_guard_ai(context_str: str, user_message: str) -> str:
     """
     Calls the OpenAI API passing in the context block and the user message.
     """
-    if not settings.OPENAI_API_KEY:
+    if not settings.LIVE_AI_ENABLED or not settings.OPENAI_API_KEY:
         return "[Mock RAG Response] Please set OPENAI_API_KEY. Based on context, there are active alerts."
 
     try:
         client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=settings.OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": "You are a helpful, empathetic agricultural assistant named AgriGuard AI. Use the provided context to answer questions. Keep answers concise (max 3 sentences)."},
                 {"role": "user", "content": f"Context:\n{context_str}\n\nQuestion: {user_message}"}

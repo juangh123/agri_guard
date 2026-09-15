@@ -3,15 +3,6 @@ import React, { useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts';
 import { ShieldCheck, Clock, AlertTriangle, FileCheck, Activity } from 'lucide-react';
 
-const MONTHLY_FALLBACK = [
-  { month: 'Mar', claims: 250, payout: 110 },
-  { month: 'Apr', claims: 320, payout: 180 },
-  { month: 'May', claims: 150, payout: 60 },
-  { month: 'Jun', claims: 90, payout: 40 },
-  { month: 'Jul', claims: 110, payout: 52 },
-  { month: 'Aug', claims: 140, payout: 66 },
-];
-
 const ANOMALY_DATA = [
   { day: '01', anomaly: 0.2, threshold: 1.5 },
   { day: '05', anomaly: 0.5, threshold: 1.5 },
@@ -39,43 +30,69 @@ function formatMoney(value) {
 export default function DashboardOverview({ farms = [], alerts = [], claims = [], onNavigateClaims }) {
   const { t } = useTranslation();
 
-  /* Derive headline metrics from live data, falling back to demo figures
-     only when the backend has not returned anything yet. */
+  /* Derive headline metrics only from records returned by the backend. */
   const metrics = useMemo(() => {
     const paidClaims = claims.filter((c) => String(c.status).toUpperCase() === 'PAID');
-    const totalPaid = paidClaims.reduce((sum, c) => sum + Number(c.payout_amount || 0), 0);
-    const riskZones = alerts.filter((a) => DANGER_STATUSES.includes(String(a.status || '').toUpperCase())).length;
+    const pendingClaims = claims.filter((c) => String(c.status).toUpperCase() === 'PENDING');
+    const pipelineClaims = claims.filter((c) => !['REJECTED'].includes(String(c.status).toUpperCase()));
+    const totalPipeline = pipelineClaims.reduce((sum, c) => sum + Number(c.payout_amount || 0), 0);
+    const paidDurations = paidClaims
+      .filter((c) => c.paid_at && c.triggered_at)
+      .map((c) => (new Date(c.paid_at).getTime() - new Date(c.triggered_at).getTime()) / 3_600_000)
+      .filter((hours) => Number.isFinite(hours) && hours >= 0);
+    const averagePayoutTime = paidDurations.length
+      ? `${(paidDurations.reduce((sum, hours) => sum + hours, 0) / paidDurations.length).toFixed(1)}h`
+      : '—';
+    const riskZoneKeys = new Set(
+      alerts
+        .filter((a) => DANGER_STATUSES.includes(String(a.status || '').toUpperCase()))
+        .map((a) => `${a.farm || a.farm_name}:${String(a.event_type || 'UNKNOWN').toUpperCase()}`)
+    );
+    const riskZones = riskZoneKeys.size;
 
-    const hasData = farms.length > 0 || claims.length > 0 || alerts.length > 0;
     return {
-      policies: farms.length > 0 ? farms.length.toLocaleString() : '12,450',
-      paidValue: claims.length > 0 ? formatMoney(totalPaid) : '$465k',
-      paidCount: claims.length > 0 ? `${paidClaims.length} ${t('claims_unit')}` : `320 ${t('claims_unit')}`,
-      payoutTime: '18h',
-      riskZones: alerts.length > 0 ? String(riskZones) : '4',
+      policies: farms.length.toLocaleString(),
+      pipelineValue: formatMoney(totalPipeline),
+      claimStatusCounts: `${pendingClaims.length} PENDING · ${paidClaims.length} PAID`,
+      payoutTime: averagePayoutTime,
+      payoutTimeTrend: paidClaims.length ? '' : 'PENDING',
+      riskZones: String(riskZones),
       riskTrend: riskZones > 0 ? t('risk_alerts_active') : t('risk_none_active'),
-      isLive: hasData,
     };
   }, [farms, claims, alerts, t]);
 
   /* Build monthly chart from real claims when available */
   const monthlyData = useMemo(() => {
-    if (claims.length === 0) return MONTHLY_FALLBACK;
+    if (claims.length === 0) return [];
     const buckets = {};
     claims.forEach((c) => {
       const d = new Date(c.triggered_at || c.created_at || Date.now());
       const key = d.toLocaleString('en-US', { month: 'short' });
       if (!buckets[key]) buckets[key] = { month: key, claims: 0, payout: 0 };
       buckets[key].claims += 1;
-      buckets[key].payout += Number(c.payout_amount || 0) / 1000;
+      if (String(c.status || '').toUpperCase() === 'PAID') {
+        buckets[key].payout += Number(c.payout_amount || 0) / 1000;
+      }
     });
     return Object.values(buckets).slice(-6);
   }, [claims]);
 
-  const recentClaims = useMemo(
-    () => [...claims].sort((a, b) => new Date(b.triggered_at || 0) - new Date(a.triggered_at || 0)).slice(0, 6),
-    [claims]
-  );
+  const recentClaims = useMemo(() => {
+    const sorted = [...claims].sort(
+      (a, b) => new Date(b.triggered_at || 0) - new Date(a.triggered_at || 0)
+    );
+    const seen = new Set();
+    return sorted
+      .filter((claim) => {
+        const farmKey = claim.farm || claim.farm_name;
+        const eventKey = String(claim.event_type || "UNKNOWN").toUpperCase();
+        const key = `${farmKey}:${eventKey}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 6);
+  }, [claims]);
 
   return (
     <div className="space-y-6">
@@ -84,22 +101,22 @@ export default function DashboardOverview({ farms = [], alerts = [], claims = []
         <MetricCard
           title={t('active_policies')}
           value={metrics.policies}
-          trend="+12% YTD"
+          trend=""
           status="good"
           icon={<ShieldCheck className="h-6 w-6" />}
         />
         <MetricCard
           title={t('claims_auto_paid')}
-          value={metrics.paidValue}
-          trend={metrics.paidCount}
+          value={metrics.pipelineValue}
+          trend={metrics.claimStatusCounts}
           status="info"
           icon={<FileCheck className="h-6 w-6" />}
         />
         <MetricCard
           title={t('avg_payout_time')}
           value={metrics.payoutTime}
-          trend="-6h vs industry"
-          status="good"
+          trend={metrics.payoutTimeTrend}
+          status={metrics.payoutTimeTrend ? 'warning' : 'good'}
           icon={<Clock className="h-6 w-6" />}
         />
         <MetricCard
@@ -276,8 +293,11 @@ export function ClaimStatusBadge({ status }) {
   const s = String(status || '').toUpperCase();
   const styles = {
     PAID: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30',
+    PENDING: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
     REJECTED: 'bg-red-500/10 text-red-600 border-red-500/30',
     DETECTED: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
+    TRIGGERED: 'bg-blue-500/10 text-blue-600 border-blue-500/30',
+    NOTIFIED: 'bg-indigo-500/10 text-indigo-600 border-indigo-500/30',
     VERIFIED: 'bg-blue-500/10 text-blue-600 border-blue-500/30',
   };
   return (

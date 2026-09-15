@@ -86,6 +86,7 @@ demo_report.html
 .coverage
 htmlcov/
 .pytest_cache/
+.playwright-cli/
 .tox/
 coverage.xml
 *.cover
@@ -106,6 +107,16 @@ test_all.cjs
 # Local dependency download cache
 tmp_lru/
 
+# Local finalization and video-build intermediates
+.codex-build-presentation/
+.codex-finalizer/
+.codex-runtime/
+output/
+
+# Superseded presentation drafts; the submission deck remains in docs/
+docs/AgriGuard_Presentation_final.pptx
+docs/AgriGuard_Presentation_v3.pptx
+
 # Portable local PostgreSQL/PostGIS runtime used when Docker is unavailable
 .pgdata/
 .pg.log
@@ -114,3 +125,7 @@ tmp_lru/
 tmp_api_test.py
 tmp_register_test.py
 tmp_smoke_test.py
+
+.vercel
+.env*
+/.vercel-temp.env

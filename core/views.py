@@ -20,6 +20,21 @@ class FarmViewSet(viewsets.ModelViewSet):
     serializer_class = FarmSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
 
+    # The demo map stays publicly readable, but every write and per-farm action
+    # (test_sms / test_wallet / update / delete) must stay inside the caller's
+    # own farms. Without this, any authenticated account could mutate or probe
+    # another farmer's contact and payout details.
+    PUBLIC_ACTIONS = {'list', 'retrieve', 'risk_status'}
+
+    def get_queryset(self):
+        queryset = Farm.objects.all().order_by('id')
+        if self.action in self.PUBLIC_ACTIONS:
+            return queryset
+        user = self.request.user
+        if not user.is_authenticated:
+            return queryset.none()
+        return queryset.filter(owner=user)
+
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
 
@@ -32,22 +47,32 @@ class FarmViewSet(viewsets.ModelViewSet):
         farms = Farm.objects.filter(owner=request.user).order_by('id')
 
         sms_configured = bool(
-            settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and settings.TWILIO_PHONE_NUMBER
+            settings.LIVE_SMS_ENABLED
+            and settings.TWILIO_ACCOUNT_SID
+            and settings.TWILIO_AUTH_TOKEN
+            and settings.TWILIO_PHONE_NUMBER
         )
         web3_rpc = os.getenv('WEB3_PROVIDER_URI') or os.getenv('WEB3_RPC_URL')
         web3_private_key = os.getenv('WEB3_PRIVATE_KEY') or os.getenv('ORACLE_PRIVATE_KEY')
         web3_contract = os.getenv('SMART_CONTRACT_ADDRESS')
-        web3_configured = bool(web3_rpc and web3_private_key and web3_contract)
+        web3_configured = bool(
+            settings.LIVE_SETTLEMENT_ENABLED
+            and web3_rpc
+            and web3_private_key
+            and web3_contract
+        )
 
         return Response({
             'sms': {
                 'configured': sms_configured,
+                'live_enabled': settings.LIVE_SMS_ENABLED,
                 'provider': 'Twilio',
                 'from_number': settings.TWILIO_PHONE_NUMBER or '',
                 'mode': 'live' if sms_configured else 'mock',
             },
             'web3': {
                 'configured': web3_configured,
+                'live_enabled': settings.LIVE_SETTLEMENT_ENABLED,
                 'rpc_present': bool(web3_rpc),
                 'private_key_present': bool(web3_private_key),
                 'contract_present': bool(web3_contract),
@@ -108,12 +133,17 @@ class FarmViewSet(viewsets.ModelViewSet):
         web3_private_key = os.getenv('WEB3_PRIVATE_KEY') or os.getenv('ORACLE_PRIVATE_KEY')
         web3_contract = os.getenv('SMART_CONTRACT_ADDRESS')
 
-        if not (web3_rpc and web3_private_key and web3_contract):
+        if not (
+            settings.LIVE_SETTLEMENT_ENABLED
+            and web3_rpc
+            and web3_private_key
+            and web3_contract
+        ):
             return Response({
                 'ok': True,
                 'mode': 'mock',
                 'wallet_address': wallet_address,
-                'detail': 'Wallet address accepted. Set WEB3_PROVIDER_URI, WEB3_PRIVATE_KEY and SMART_CONTRACT_ADDRESS for on-chain settlement.',
+                'detail': 'Wallet address accepted. Set LIVE_SETTLEMENT_ENABLED=True plus WEB3_PROVIDER_URI, WEB3_PRIVATE_KEY and SMART_CONTRACT_ADDRESS for on-chain settlement.',
             })
 
         from core.services.blockchain_service import BlockchainService
@@ -153,7 +183,7 @@ class FarmViewSet(viewsets.ModelViewSet):
             "highest_risk": highest_risk
         })
 
-class DisasterEventViewSet(viewsets.ModelViewSet):
+class DisasterEventViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = DisasterEvent.objects.all()
     serializer_class = DisasterEventSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
@@ -177,7 +207,7 @@ class DisasterEventViewSet(viewsets.ModelViewSet):
         This is the endpoint behind the dashboard's 'Simulate Disaster' button.
         """
         disaster_type = str(request.data.get('event_type', 'FLOOD')).upper()
-        allowed_types = ('FLOOD', 'WILDFIRE', 'DROUGHT')
+        allowed_types = ('FLOOD', 'WILDFIRE', 'DROUGHT', 'HEATWAVE')
         if disaster_type not in allowed_types:
             return Response(
                 {"error": f"Unsupported event_type. Use one of: {', '.join(allowed_types)}"},
@@ -209,26 +239,39 @@ class DisasterEventViewSet(viewsets.ModelViewSet):
                 'water_level_m': 3.5,
                 'duration_days': 4,
                 'rain_anomaly': True,
+                'simulation': True,
                 'source': 'GEOGLOWS 2.0 ECMWF Streamflow (demo)',
             },
             'WILDFIRE': {
                 'fire_area_ha': 12.0,
+                'simulation': True,
                 'source': 'VIIRS Thermal Hotspots (demo)',
             },
             'DROUGHT': {
                 'ndwi': -0.25,
+                'simulation': True,
                 'source': 'NDWI Satellite Index (demo)',
+            },
+            'HEATWAVE': {
+                'temperature_anomaly_c': 3.1,
+                'duration_days': 4,
+                'simulation': True,
+                'source': 'Temperature Anomaly Index (demo)',
             },
         }
 
-        event = DisasterEvent.objects.create(
-            title=f"{disaster_type.title()} Demo Event - {timezone.now().strftime('%H:%M:%S')}",
+        event = DisasterEvent(
+            title=f"[SIMULATED] {disaster_type.title()} Scenario - {timezone.now().strftime('%H:%M:%S')}",
             event_type=disaster_type,
             severity_level=3,
             affected_area=affected_area,
             start_date=timezone.now(),
             eo_metrics=metrics_by_type[disaster_type],
         )
+        # The post_save signal would run the pipeline without simulation metrics;
+        # this endpoint drives it explicitly below so the event is processed once.
+        event._skip_auto_trigger = True
+        event.save()
 
         from .tasks import process_disaster_event
         try:
@@ -249,12 +292,12 @@ class DisasterEventViewSet(viewsets.ModelViewSet):
             "details": result,
         })
 
-class RiskAlertViewSet(viewsets.ModelViewSet):
+class RiskAlertViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = RiskAlert.objects.all()
     serializer_class = RiskAlertSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
 
-class ClaimViewSet(viewsets.ModelViewSet):
+class ClaimViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Claim.objects.all().order_by('-triggered_at')
     serializer_class = ClaimSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]

@@ -28,6 +28,7 @@ import SmsMockup from "../components/SmsMockup";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { CommandPalette } from "../components/CommandPalette";
 import { useAlertsSocket } from "../hooks/useAlertsSocket";
+import { ensureDemoSession } from "../utils/auth";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
 
@@ -41,6 +42,7 @@ const NAV_ITEMS = [
 ];
 
 const FARMER_TABS = ["overview", "map", "timeline", "sms"];
+const TAB_IDS = NAV_ITEMS.map((item) => item.id);
 
 const ROLE_CONFIGS = {
   insurer: { labelKey: "role_insurer" },
@@ -58,7 +60,10 @@ function applyThemeClasses(theme, isFarmer) {
 export default function Dashboard() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") || "overview");
+  const [activeTab, setActiveTab] = useState(() => {
+    const requested = String(searchParams.get("tab") || "").toLowerCase();
+    return TAB_IDS.includes(requested) ? requested : "overview";
+  });
   const [farms, setFarms] = useState([]);
   const [claims, setClaims] = useState([]);
   const [alerts, setAlerts] = useState([]);
@@ -143,6 +148,20 @@ export default function Dashboard() {
     setSearchParams({ tab: tabId });
   };
 
+  // A stale or role-restricted ?tab= value must never leave the workspace blank.
+  useEffect(() => {
+    const allowed = isFarmer ? FARMER_TABS : TAB_IDS;
+    const nextTab = allowed.includes(activeTab) ? activeTab : "overview";
+    const requested = searchParams.get("tab");
+
+    if (nextTab !== activeTab) {
+      setActiveTab(nextTab);
+    }
+    if (requested && requested.toLowerCase() !== nextTab) {
+      setSearchParams({ tab: nextTab }, { replace: true });
+    }
+  }, [activeTab, isFarmer, searchParams, setSearchParams]);
+
   const fetchInitialData = useCallback(async () => {
     // Track per-endpoint failures so a fully-offline session falls back to the
     // last synced snapshot instead of silently showing empty dashboards.
@@ -159,7 +178,9 @@ export default function Dashboard() {
         throw new Error("network unreachable");
       }
 
-      const rawFarms = Array.isArray(farmsRes.data) ? farmsRes.data : farmsRes.data?.results || [];
+      const rawFarms = Array.isArray(farmsRes.data)
+        ? farmsRes.data
+        : farmsRes.data?.features || farmsRes.data?.results || [];
       const rawClaims = Array.isArray(claimsRes.data) ? claimsRes.data : claimsRes.data?.results || [];
       const rawAlerts = Array.isArray(alertsRes.data) ? alertsRes.data : alertsRes.data?.results || [];
 
@@ -214,30 +235,43 @@ export default function Dashboard() {
 
   useAlertsSocket(handleNewAlert);
 
-  const handleSimulateDisaster = async () => {
+  const handleSimulateDisaster = async (requestedType) => {
     setIsSimulating(true);
     try {
       // Hit the real backend pipeline: spatial matching → alerts → claims →
       // claim timeline steps → (mock) payout/SMS → WebSocket broadcast.
-      // Derive the event type from the latest alert so the demo scenario stays
-      // consistent with what's on screen.
-      const VALID_TYPES = ["FLOOD", "WILDFIRE", "DROUGHT"];
-      const fromAlert = String(alerts[0]?.event_type || "").toUpperCase();
-      const eventType = VALID_TYPES.includes(fromAlert) ? fromAlert : "FLOOD";
+      const VALID_TYPES = ["FLOOD", "WILDFIRE", "DROUGHT", "HEATWAVE"];
+      const eventType = VALID_TYPES.includes(String(requestedType).toUpperCase())
+        ? String(requestedType).toUpperCase()
+        : "FLOOD";
+      const token = await ensureDemoSession();
+      if (!token) {
+        throw new Error("Demo session unavailable");
+      }
       await axios.post(`${API_BASE_URL}/events/simulate/`, { event_type: eventType });
       setIsDisasterActive(true);
       toast.success(t("map_disaster_active"));
       // Refresh lists immediately; the WebSocket NEW_ALERT push also arrives.
       fetchInitialData();
     } catch {
-      // Offline / unauthenticated fallback: keep the front-end-only demo behavior
-      await new Promise((r) => setTimeout(r, 1200));
-      setIsDisasterActive(true);
-      toast.success(t("map_disaster_active"));
+      toast.error(t("disaster_simulate_failed"));
     } finally {
       setIsSimulating(false);
     }
   };
+
+  const notificationAlerts = useMemo(() => {
+    const sorted = [...alerts].sort(
+      (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)
+    );
+    const seen = new Set();
+    return sorted.filter((alert) => {
+      const key = `${alert.farm || alert.farm_name}:${String(alert.event_type || "").toUpperCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [alerts]);
 
   // Search Results Calculation
   const searchResults = useMemo(() => {
@@ -284,8 +318,8 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col transition-colors duration-200">
       {/* Top Navbar */}
-      <header className="sticky top-0 z-30 border-b border-border bg-card/85 backdrop-blur-md px-4 lg:px-8 py-3 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <header className="sticky top-0 z-30 border-b border-border bg-card/85 backdrop-blur-md px-3 sm:px-4 lg:px-8 py-3 flex items-center justify-between gap-2 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-emerald-700 to-emerald-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
             <Shield className="h-5 w-5" />
           </div>
@@ -293,7 +327,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <span className="font-extrabold text-base tracking-tight text-primary">AgriGuard</span>
               {!isFarmer && (
-                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-mono">v2.4 Pro</span>
+                <span className="hidden sm:inline-flex text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-mono">v2.4 Pro</span>
               )}
             </div>
             <p className="text-[11px] text-muted-foreground hidden sm:block">{t("app_subtitle")}</p>
@@ -357,12 +391,12 @@ export default function Dashboard() {
         )}
 
         {/* Right Tools & Role Picker */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           <select
             value={userRole}
             onChange={(e) => handleRoleChange(e.target.value)}
             aria-label={t("switch_role")}
-            className="text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-border bg-card text-foreground cursor-pointer outline-none focus:ring-2 focus:ring-primary/20"
+            className="max-w-[6.5rem] sm:max-w-none text-[10px] sm:text-xs font-semibold px-2 sm:px-2.5 py-1.5 rounded-xl border border-border bg-card text-foreground cursor-pointer outline-none focus:ring-2 focus:ring-primary/20"
           >
             <option value="insurer">{t("role_insurer")}</option>
             <option value="farmer">{t("role_farmer")}</option>
@@ -402,7 +436,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-2 space-y-2 max-h-64 overflow-y-auto scrollbar-thin">
-                  {alerts.slice(0, 5).map((a) => (
+                  {notificationAlerts.slice(0, 5).map((a) => (
                     <button
                       key={a.id}
                       onClick={() => { setNotificationsOpen(false); handleTabChange("map"); }}
@@ -424,7 +458,7 @@ export default function Dashboard() {
             )}
           </div>
 
-          <LanguageSwitcher />
+          <LanguageSwitcher className="max-w-[5rem] sm:max-w-none px-2 sm:px-3 text-[10px] sm:text-xs" />
         </div>
       </header>
 
@@ -499,7 +533,7 @@ export default function Dashboard() {
           )}
 
           {activeTab === "timeline" && (
-            <ClaimTimeline claimNo={selectedClaimNo || claims[0]?.claim_no || "CLM-2026-0819-01"} />
+            <ClaimTimeline claimNo={selectedClaimNo || claims[0]?.claim_no || ""} />
           )}
 
           {activeTab === "reports" && (

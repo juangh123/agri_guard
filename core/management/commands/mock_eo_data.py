@@ -42,15 +42,17 @@ class Command(BaseCommand):
                 'water_level_m': 3.5, # Exceeds 2.5m threshold
                 'duration_days': 4, # Exceeds 3 days threshold
                 'rain_anomaly': True,
-                'source': 'GEOGLOWS 2.0 ECMWF Streamflow'
+                'simulation': True,
+                'source': 'GEOGLOWS 2.0 ECMWF Streamflow (demo)'
             }
-            title = f"GEOGLOWS Flood Alert - {datetime.now().strftime('%H:%M:%S')}"
+            title = f"[SIMULATED] GEOGLOWS Flood Scenario - {datetime.now().strftime('%H:%M:%S')}"
         else: # WILDFIRE
             metrics = {
                 'fire_area_ha': 12.0, # Exceeds 5.0 ha threshold
-                'source': 'VIIRS Thermal Hotspots'
+                'simulation': True,
+                'source': 'VIIRS Thermal Hotspots (demo)'
             }
-            title = f"VIIRS Wildfire Detected - {datetime.now().strftime('%H:%M:%S')}"
+            title = f"[SIMULATED] VIIRS Wildfire Scenario - {datetime.now().strftime('%H:%M:%S')}"
             
         event = DisasterEvent.objects.create(
             title=title,

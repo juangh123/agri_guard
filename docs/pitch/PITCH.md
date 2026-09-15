@@ -1,6 +1,8 @@
 # AgriGuard — 01: Pitch Script & Submission Abstract
 
 > **Tagline:** Zero-Touch Parametric Insurance & Real-time Early Warning System for Africa's Smallholder Farmers, powered by GNSS, Earth Observation, and Web3.
+>
+> **Submission track:** Challenge II — Synergizing Agriculture and Geomatics.
 
 ---
 
@@ -12,17 +14,17 @@ Every year, African farmers lose **$9.3 billion** to climate disasters. Yet agri
 
 **[0:30 — Our Solution]**
 
-We built **AgriGuard** — the first insurance platform where space data replaces human adjusters.
+We built **AgriGuard** to reduce the human adjustment bottleneck with GNSS-defined farm evidence and space-derived hazard signals.
 
-Here's how it works: We use **Galileo GNSS** to create tamper-proof geo-fences around every insured farm. Every 6 hours, our system pulls live disaster data from **NASA EONET** and hydrological forecasts from **GEOGLOWS**. When a disaster polygon intersects a farmer's GNSS-verified plot, **PostGIS spatial queries** instantly identify every affected farmer — no field visit, no paperwork, no delay.
+Here's how it works: We use GNSS-captured WGS84 boundaries to create auditable geo-fences around every insured farm. Every 6 hours, our system pulls live event footprints from **NASA EONET** and displays hydrological forecasts from **GEOGLOWS**. When a verified hazard footprint intersects a farmer's GNSS-defined plot, **PostGIS spatial queries** identify every potentially affected farmer without a field visit or manual paperwork.
 
 **[0:55 — The Money Moment]**
 
-A **Solidity smart contract** automatically triggers a **USDC stablecoin payout** within 3 minutes. At the same time, the farmer receives an **SMS alert** via Twilio with the transaction hash. And our **OpenAI damage estimator** generates an AI assessment report in real time.
+The backend evaluates crop-specific thresholds and, when configured, signs an **ERC-20 settlement transfer** from the insurer/oracle wallet; otherwise the claim remains visibly `PENDING`. The farmer receives an **SMS status alert** via Twilio, and our **OpenAI damage estimator** generates an assessment report. A Solidity policy contract is included as the reference escrow design for the next phase.
 
 **[1:10 — Impact & Business]**
 
-We reduce claim settlement from 12 weeks to 3 minutes, cut verification costs by 90%, and eliminate fraud through GNSS geo-fencing. Our B2B2C SaaS model charges insurers per-policy plus micro-transaction fees per smart contract execution. With 120,000 farmers onboarded, we project **~$3M ARR**. Every automated claim drives downstream satellite service consumption — making AgriGuard the bridge between space tech and financial inclusion.
+Our target is to reduce claim settlement from 12 weeks to 3 minutes and cut verification costs by up to 90% while making farm-boundary evidence auditable. Our B2B2C SaaS model charges insurers per policy plus a micro-transaction fee per settlement. With 120,000 farmers onboarded, we project **~$3M ARR**. Every automated claim drives downstream satellite-service consumption, making AgriGuard a bridge between space technology and financial inclusion.
 
 **AgriGuard: When the Earth speaks, farmers get paid.**
 
@@ -32,11 +34,11 @@ We reduce claim settlement from 12 weeks to 3 minutes, cut verification costs by
 
 **Problem:** Climate disasters cost African agriculture $9.3B annually, yet insurance covers less than 3% of smallholder farmers. Traditional insurance fails because claim verification requires costly field surveys, settlements take 4–12 weeks, and premiums are unaffordable for subsistence farmers. Delayed liquidity post-disaster forces families into irreversible poverty.
 
-**Solution:** AgriGuard is a zero-touch parametric insurance platform that replaces human adjusters with satellite data. The system integrates **Galileo GNSS** for tamper-proof farm geo-fencing, **NASA EONET** for real-time disaster monitoring and **GEOGLOWS** for live flood-forecast visualization (automated claim-trigger ingestion simulated in the demo), **PostGIS** for spatial intersection analysis, **Solidity smart contracts** for automated USDC payouts, and **Twilio SMS** for low-bandwidth farmer alerts (**USSD** planned). When satellite data confirms a disaster intersects a farmer's GNSS-verified plot, a smart contract triggers an instant payout — no human intervention required. An OpenAI-powered damage estimator generates automated assessment reports in parallel.
+**Solution:** AgriGuard is a zero-touch parametric insurance platform that reduces the manual loss-adjustment bottleneck with geospatial evidence. The system integrates GNSS-captured WGS84 farm polygons, **NASA EONET** for event-footprint monitoring, **GEOGLOWS** for live flood-forecast visualization (automated threshold ingestion is a production roadmap item), **PostGIS** for spatial intersection analysis, a configured **ERC-20 settlement path**, and **Twilio SMS** for low-bandwidth farmer alerts (**USSD** planned). When verified hazard metrics intersect a farmer's GNSS-defined plot, the backend either executes a configured token transfer or records a transparent `PENDING` claim. The included Solidity contract is the reference escrow design for the next phase. An OpenAI-powered damage estimator generates assessment reports in parallel.
 
-**Innovation:** We are the first to close the loop from satellite observation to automated financial resilience for underserved farmers. GNSS geo-fencing eliminates fraud, while parametric triggers remove administrative overhead. The platform supports English, French, and Kiswahili, with USSD fallback planned for farmers without smartphones. A real-time MapLibre/Esri dashboard visualizes all active disasters, affected farms, and payout status via WebSocket streaming.
+**Innovation:** AgriGuard closes the loop from GNSS-defined farm boundaries and space-derived hazard signals to auditable financial resilience for underserved farmers. Captured boundary metadata strengthens evidence integrity, while parametric rules remove routine administrative overhead. The platform supports seven UI languages, with USSD fallback planned for farmers without smartphones. A real-time MapLibre/Esri dashboard visualizes active hazards, affected farms, and claim status via WebSocket streaming.
 
-**Impact:** Claim settlement drops from 12 weeks to under 3 minutes. Verification costs approach $0. Our Year-3 target: 50,000+ protected farmers, 60% reduction in post-disaster bankruptcy rates via immediate USDC liquidity, and ~$3M ARR from a $25 average annual micro-premium across 120,000 farmers.
+**Impact target:** Claim settlement falls from 12 weeks to under 3 minutes when integrations are live. Verification costs approach zero. Our Year-3 target is 120,000 protected farmers, materially improved post-disaster liquidity, and ~$3M ARR from a $25 average annual micro-premium.
 
 ---
 

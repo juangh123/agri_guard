@@ -70,7 +70,12 @@ export default function ReportQueryPanel({ farms = [], alerts = [], claims = [] 
       return matchesDate(claim.triggered_at);
     });
 
-    const totalPayout = claimMatches.reduce((sum, claim) => sum + Number(claim.payout_amount || 0), 0);
+    const paidClaims = claimMatches.filter((claim) => String(claim.status || "").toUpperCase() === "PAID");
+    const pendingClaims = claimMatches.filter((claim) => String(claim.status || "").toUpperCase() === "PENDING");
+    const pipelineClaims = claimMatches.filter((claim) => String(claim.status || "").toUpperCase() !== "REJECTED");
+    const totalPaid = paidClaims.reduce((sum, claim) => sum + Number(claim.payout_amount || 0), 0);
+    const totalPending = pendingClaims.reduce((sum, claim) => sum + Number(claim.payout_amount || 0), 0);
+    const totalPipeline = pipelineClaims.reduce((sum, claim) => sum + Number(claim.payout_amount || 0), 0);
     const averageConfidence = alertMatches.length
       ? alertMatches.reduce((sum, alert) => sum + Number(alert.confidence || 0), 0) / alertMatches.length
       : 0;
@@ -78,7 +83,11 @@ export default function ReportQueryPanel({ farms = [], alerts = [], claims = [] 
     return {
       alerts: alertMatches,
       claims: claimMatches,
-      totalPayout,
+      totalPipeline,
+      totalPayout: totalPaid,
+      totalPending,
+      paidCount: paidClaims.length,
+      pendingCount: pendingClaims.length,
       averageConfidence,
       generatedAt: new Date(),
     };
@@ -88,7 +97,7 @@ export default function ReportQueryPanel({ farms = [], alerts = [], claims = [] 
     if (!report) return;
     setIsExporting(true);
     const rows = [
-      ["Claim ID", "Farm", "Event Type", "Status", "Payout Amount", "Trigger Date", "Tx Hash"],
+      ["Claim ID", "Farm", "Event Type", "Status", "Claim Amount", "Trigger Date", "Tx Hash"],
       ...report.claims.map(c => [
         c.claim_no,
         c.farm_name || t("farm_number", { id: c.farm }),
@@ -96,7 +105,7 @@ export default function ReportQueryPanel({ farms = [], alerts = [], claims = [] 
         c.status,
         c.payout_amount,
         c.triggered_at || new Date().toISOString(),
-        c.tx_hash || "0x8f2a...92a1"
+        c.tx_hash || ""
       ])
     ];
     const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
@@ -222,7 +231,11 @@ export default function ReportQueryPanel({ farms = [], alerts = [], claims = [] 
             </div>
             <div className="rounded-2xl border border-border/60 bg-muted/40 p-4">
               <p className="text-xs font-semibold text-muted-foreground">{t("payout_value_kpi")}</p>
-              <p className="mt-2 text-3xl font-extrabold text-foreground">{formatMoney(report.totalPayout)}</p>
+              <p className="mt-2 text-3xl font-extrabold text-foreground">{formatMoney(report.totalPipeline)}</p>
+              <p className="mt-1 text-[11px] font-semibold text-muted-foreground">
+                {formatMoney(report.totalPending)} PENDING · {formatMoney(report.totalPayout)} PAID
+                {" "}({report.pendingCount} / {report.paidCount})
+              </p>
             </div>
             <div className="rounded-2xl border border-border/60 bg-muted/40 p-4">
               <p className="text-xs font-semibold text-muted-foreground">{t("avg_confidence_kpi")}</p>
@@ -233,8 +246,34 @@ export default function ReportQueryPanel({ farms = [], alerts = [], claims = [] 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <div>
               <h4 className="mb-3 text-sm font-bold text-foreground">{t("alert_matches_title")}</h4>
-              <div className="overflow-x-auto rounded-xl border border-border/60 bg-card">
-                <table className="min-w-full text-left text-xs">
+              <div className="space-y-3 md:hidden">
+                {report.alerts.map((alert) => (
+                  <div key={alert.id} className="rounded-xl border border-border/60 bg-card p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-foreground">
+                          {alert.farm_name || t("farm_number", { id: alert.farm })}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">{alert.event_type}</p>
+                      </div>
+                      <span className="status-chip shrink-0">{alert.status}</span>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between border-t border-border/40 pt-3 text-xs">
+                      <span className="text-muted-foreground">{t("confidence_rate")}</span>
+                      <span className="font-mono font-bold text-foreground">
+                        {Number(alert.confidence || 0).toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {report.alerts.length === 0 && (
+                  <div className="rounded-xl border border-border/60 bg-card px-4 py-6 text-center text-muted-foreground">
+                    {t("no_alerts_matched")}
+                  </div>
+                )}
+              </div>
+              <div className="hidden overflow-x-auto rounded-xl border border-border/60 bg-card md:block">
+                <table className="min-w-[560px] text-left text-xs lg:min-w-full">
                   <thead className="border-b border-border bg-muted/50 text-muted-foreground font-semibold">
                     <tr>
                       <th className="px-4 py-3">{t("overview_table_farm")}</th>
@@ -262,14 +301,46 @@ export default function ReportQueryPanel({ farms = [], alerts = [], claims = [] 
 
             <div>
               <h4 className="mb-3 text-sm font-bold text-foreground">{t("claim_matches_title")}</h4>
-              <div className="overflow-x-auto rounded-xl border border-border/60 bg-card">
-                <table className="min-w-full text-left text-xs">
+              <div className="space-y-3 md:hidden">
+                {report.claims.map((claim) => (
+                  <div key={claim.id} className="rounded-xl border border-border/60 bg-card p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-mono text-sm font-bold text-primary">{claim.claim_no}</p>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {claim.farm_name || t("farm_number", { id: claim.farm })}
+                        </p>
+                      </div>
+                      <span className="status-chip shrink-0">{claim.status}</span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border/40 pt-3 text-xs">
+                      <div>
+                        <p className="text-muted-foreground">{t("claim_value")}</p>
+                        <p className="mt-1 font-bold text-foreground">{formatMoney(claim.payout_amount)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-muted-foreground">Tx</p>
+                        <p className="mt-1 font-mono text-[11px] text-foreground">
+                          {claim.tx_hash ? `${claim.tx_hash.slice(0, 10)}…` : "—"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {report.claims.length === 0 && (
+                  <div className="rounded-xl border border-border/60 bg-card px-4 py-6 text-center text-muted-foreground">
+                    {t("no_claims_matched")}
+                  </div>
+                )}
+              </div>
+              <div className="hidden overflow-x-auto rounded-xl border border-border/60 bg-card md:block">
+                <table className="min-w-[640px] text-left text-xs lg:min-w-full">
                   <thead className="border-b border-border bg-muted/50 text-muted-foreground font-semibold">
                     <tr>
                       <th className="px-4 py-3">{t("claim_number_label")}</th>
                       <th className="px-4 py-3">{t("overview_table_farm")}</th>
                       <th className="px-4 py-3">{t("overview_table_status")}</th>
-                      <th className="px-4 py-3">{t("payout_value_kpi")}</th>
+                      <th className="px-4 py-3">{t("claim_value")}</th>
                       <th className="px-4 py-3">Tx</th>
                     </tr>
                   </thead>
@@ -280,7 +351,7 @@ export default function ReportQueryPanel({ farms = [], alerts = [], claims = [] 
                         <td className="px-4 py-3">{claim.farm_name || t("farm_number", { id: claim.farm })}</td>
                         <td className="px-4 py-3">{claim.status}</td>
                         <td className="px-4 py-3 font-semibold text-foreground">{formatMoney(claim.payout_amount)}</td>
-                        <td className="px-4 py-3 text-muted-foreground font-mono text-[11px]">{claim.tx_hash ? `${claim.tx_hash.slice(0, 10)}…` : "0x8f2a…92a1"}</td>
+                        <td className="px-4 py-3 text-muted-foreground font-mono text-[11px]">{claim.tx_hash ? `${claim.tx_hash.slice(0, 10)}…` : "—"}</td>
                       </tr>
                     ))}
                     {report.claims.length === 0 && (

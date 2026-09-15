@@ -11,19 +11,25 @@ class ParametricClaimEngine:
                 "flood_water_level_m": 2.5,  # Water level threshold for flooding
                 "flood_duration_days": 3,    # Duration needed for severe damage
                 "fire_area_hectares": 5.0,   # Fire intersection area threshold
-                "drought_ndwi_threshold": -0.2 # Normalized Difference Water Index for drought
+                "drought_ndwi_threshold": -0.2, # Normalized Difference Water Index for drought
+                "heatwave_anomaly_c": 2.0,
+                "heatwave_duration_days": 3,
             },
             "wheat": {
                 "flood_water_level_m": 2.0,
                 "flood_duration_days": 2,
                 "fire_area_hectares": 3.0,
-                "drought_ndwi_threshold": -0.15
+                "drought_ndwi_threshold": -0.15,
+                "heatwave_anomaly_c": 1.8,
+                "heatwave_duration_days": 3,
             },
             "livestock": {
                 "flood_water_level_m": 4.0,
                 "flood_duration_days": 5,
                 "fire_area_hectares": 10.0,
-                "drought_ndwi_threshold": -0.3
+                "drought_ndwi_threshold": -0.3,
+                "heatwave_anomaly_c": 2.5,
+                "heatwave_duration_days": 4,
             }
         }
 
@@ -86,6 +92,25 @@ class ParametricClaimEngine:
                 trigger_results['claim_triggered'] = True
                 trigger_results['reason'] = f"Severe drought detected (NDWI: {ndwi})."
                 trigger_results['confidence_score'] = 0.90
+
+        # 4. Heatwave Logic (temperature anomaly + persistence)
+        elif event.event_type == 'HEATWAVE':
+            anomaly = float(eo_data.get('temperature_anomaly_c', 0.0))
+            duration = int(eo_data.get('duration_days', 0))
+
+            if (
+                anomaly >= rules['heatwave_anomaly_c']
+                and duration >= rules['heatwave_duration_days']
+            ):
+                trigger_results['alert_needed'] = True
+                trigger_results['claim_triggered'] = True
+                trigger_results['reason'] = (
+                    f"Heatwave parameters exceeded (Anomaly: +{anomaly}C, Duration: {duration}d)"
+                )
+                trigger_results['confidence_score'] = 0.92
+            elif anomaly >= rules['heatwave_anomaly_c'] * 0.8:
+                trigger_results['alert_needed'] = True
+                trigger_results['reason'] = f"Approaching heatwave threshold (+{anomaly}C)"
 
         return trigger_results
 

@@ -7,7 +7,22 @@ __pycache__/
 *.pyc
 *.pyo
 .env
+.env.*
+.git/
+.github/
+.vercel/
+.venv/
 venv/
 
 # 忽略 PostgreSQL 挂载卷
 postgres_data/
+.pgdata/
+
+# 忽略本地部署与测试产物
+.playwright-cli/
+output/
+docs/
+tmp_gdal/
+tmp_lru/
+.postgis-bundle/
+*.zip

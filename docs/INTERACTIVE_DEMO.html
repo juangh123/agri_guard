@@ -74,7 +74,7 @@
   .alert-item .payout { color:#2ecc71; font-size:12px; font-family:monospace; margin-bottom:4px; }
   .alert-item .ai-report { background:#0D1117; padding:8px; border-radius:4px; margin-top:8px; font-size:11px; color:#b1bac4; white-space:pre-wrap; }
   .alert-item .meta { color:#6e7681; font-size:11px; display:flex; justify-content:space-between; margin-top:6px; }
-  .alert-item .status-paid { color:#2ecc71; font-weight:bold; }
+  .alert-item .status-pending { color:#f0b429; font-weight:bold; }
 
   @keyframes slideIn { from { opacity:0; transform:translateX(-20px); } to { opacity:1; transform:translateX(0); } }
 
@@ -242,7 +242,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" style="width:32px; height:32px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
       <h1>AgriGuard</h1>
     </div>
-    <p class="desc">Space-grade crop insurance for smallholder farmers. Satellite triggers, blockchain payouts, zero paperwork.</p>
+    <p class="desc">Space-grade crop insurance for smallholder farmers. Satellite triggers, auditable claims, no field paperwork.</p>
 
     <!-- Living Atlas Layers -->
     <div class="layer-panel">
@@ -399,7 +399,7 @@
         </div>
         <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:15px;">
           <button class="btn btn-ghost" onclick="goScene('scene-dashboard')">Cancel</button>
-          <button class="btn btn-red" onclick="startPipeline()">Trigger Smart Contract</button>
+          <button class="btn btn-red" onclick="startPipeline()">Generate Parametric Claim</button>
         </div>
       </form>
     </div>
@@ -424,7 +424,7 @@
       <div class="pipeline-icon">🗄️</div>
       <div class="pipeline-content">
         <h3>Step 2: PostGIS Spatial Query</h3>
-        <p><code>Farm.objects.filter(location__intersects=event.affected_area)</code> · 3 farms found in danger zone</p>
+        <p><code>Farm.objects.filter(geofence__intersects=event.affected_area)</code> · 3 farms found in danger zone</p>
       </div>
     </div>
     <div class="pipeline-line"></div>
@@ -432,8 +432,8 @@
     <div class="pipeline-step" id="ps3">
       <div class="pipeline-icon">🔗</div>
       <div class="pipeline-content">
-        <h3>Step 3: Web3 Smart Contract Payout</h3>
-        <p>Calculating payout: $500 × severity(3) = $1,500 USDC per farm · Broadcasting transaction</p>
+        <h3>Step 3: Parametric Rule and Settlement Path</h3>
+        <p>Demo value: $25/ha × 5 ha insured cap × severity(3) × confidence(0.95) = $356.25 per farm · Settlement remains PENDING until Web3 is configured</p>
       </div>
     </div>
     <div class="pipeline-line"></div>
@@ -442,7 +442,7 @@
       <div class="pipeline-icon">🤖</div>
       <div class="pipeline-content">
         <h3>Step 4: AI Damage Assessment</h3>
-        <p>GPT-3.5 generating crop loss estimation and recovery plan based on satellite imagery</p>
+        <p>The configured OpenAI model generates crop-loss guidance; a deterministic template is used when no API key is configured.</p>
       </div>
     </div>
     <div class="pipeline-line"></div>
@@ -451,7 +451,7 @@
       <div class="pipeline-icon">📱</div>
       <div class="pipeline-content">
         <h3>Step 5: SMS Notification (Twilio)</h3>
-        <p>Sending payout confirmation to 3 affected farmers via SMS</p>
+        <p>Sending claim-status notifications to 3 affected farmers via Twilio or the labeled mock fallback</p>
       </div>
     </div>
     <div class="pipeline-line"></div>
@@ -470,28 +470,26 @@
 <div class="scene" id="scene-payout">
   <div class="payout-card">
     <div class="payout-icon">✓</div>
-    <h2>Smart Contract Executed!</h2>
-    <p style="color:#8b949e; font-size:14px;">3 farms received automatic USDC payouts on-chain</p>
+    <h2>Parametric Claims Generated</h2>
+    <p style="color:#8b949e; font-size:14px;">3 farms matched the simulated hazard footprint. No real funds moved in this offline demo.</p>
     <div class="payout-detail">
       <span class="key">Farm:</span> <span class="val">Green Valley Farm</span><br>
-      <span class="key">Payout:</span> <span class="val">$1,500.00 USDC</span><br>
-      <span class="key">TxHash:</span> <span class="val" id="txhash1">0x7f3a...8e2c</span><br>
-      <span class="key">Block:</span> <span class="val">#18,923,451</span><br>
-      <span class="key">Gas:</span> <span class="val">21,000</span><br>
-      <span class="key">Status:</span> <span class="val">CONFIRMED ✓</span><br>
+      <span class="key">Claim value:</span> <span class="val">$356.25 USD</span><br>
+      <span class="key">Settlement:</span> <span class="val">PENDING</span><br>
+      <span class="key">TxHash:</span> <span class="val">Not recorded</span><br>
       <hr style="border-color:#30363d; margin:12px 0;">
       <span class="key">Farm:</span> <span class="val">Rift Valley Co-op</span><br>
-      <span class="key">Payout:</span> <span class="val">$1,500.00 USDC</span><br>
-      <span class="key">TxHash:</span> <span class="val" id="txhash2">0xa2b9...4f1d</span><br>
-      <span class="key">Status:</span> <span class="val">CONFIRMED ✓</span><br>
+      <span class="key">Claim value:</span> <span class="val">$356.25 USD</span><br>
+      <span class="key">Settlement:</span> <span class="val">PENDING</span><br>
+      <span class="key">TxHash:</span> <span class="val">Not recorded</span><br>
       <hr style="border-color:#30363d; margin:12px 0;">
       <span class="key">Farm:</span> <span class="val">Tana River Farm</span><br>
-      <span class="key">Payout:</span> <span class="val">$1,500.00 USDC</span><br>
-      <span class="key">TxHash:</span> <span class="val" id="txhash3">0x9c4e...7a3b</span><br>
-      <span class="key">Status:</span> <span class="val">CONFIRMED ✓</span>
+      <span class="key">Claim value:</span> <span class="val">$356.25 USD</span><br>
+      <span class="key">Settlement:</span> <span class="val">PENDING</span><br>
+      <span class="key">TxHash:</span> <span class="val">Not recorded</span>
     </div>
-    <p style="color:#2ecc71; font-size:18px; font-weight:bold;">Total Payout: $4,500.00 USDC</p>
-    <p style="color:#8b949e; font-size:12px; margin-top:8px;">Processing time: 3 minutes 12 seconds (vs 12 weeks traditional)</p>
+    <p style="color:#f0b429; font-size:18px; font-weight:bold;">Total Claim Value: $1,068.75 USD (pending)</p>
+    <p style="color:#8b949e; font-size:12px; margin-top:8px;">This offline scene demonstrates the workflow, not a live on-chain transaction.</p>
   </div>
 </div>
 
@@ -506,8 +504,8 @@
       <div style="color:#8b949e; font-size:11px; text-transform:uppercase; letter-spacing:1px;">Messages</div>
       <div class="sms-message">
         <div class="header"><span>AgriGuard</span><span>9:41 AM</span></div>
-        URGENT: Flood alert for 'Green Valley Farm'. Smart contract triggered. Payout: $1500.0 USDC. TxHash: 0x7f3a8e2c...<br><br>
-        Your insurance payout has been sent to your wallet. No action required.
+        URGENT: Flood alert for 'Green Valley Farm'. Claim generated. Claim value: $356.25 USD (pending settlement).<br><br>
+        No real funds moved in this offline demo. Check the app for the latest status.
       </div>
       <div class="sms-message" style="animation-delay:.5s;">
         <div class="header"><span>AgriGuard AI</span><span>9:42 AM</span></div>
@@ -524,7 +522,7 @@
       <div class="icon">🤖</div>
       <div>
         <h2>AI Damage Assessment Report</h2>
-        <div class="sub">Generated by GPT-3.5 · Green Valley Farm · Nairobi Flash Floods</div>
+        <div class="sub">Configured OpenAI model or deterministic fallback · Green Valley Farm · Nairobi Flash Floods</div>
       </div>
     </div>
     <div class="ai-report-body">
@@ -537,7 +535,7 @@
       &nbsp;&nbsp;- Soil nutrient restoration (nitrogen/phosphorus loss expected)<br>
       &nbsp;&nbsp;- Replant fast-maturing crops (e.g., beans, 60-day cycle)<br><br>
       <span class="highlight">• Recovery Forecast:</span> 3-6 months based on historical recovery metrics for Rift Valley region<br><br>
-      <span class="highlight">• Payout Status:</span> $1,500 USDC has been transferred to farmer's wallet via smart contract. TxHash: 0x7f3a8e2c...
+      <span class="highlight">• Settlement Status:</span> $356.25 claim created; status is PENDING until a configured ERC-20 transfer succeeds. No transaction hash is fabricated.
     </div>
   </div>
 </div>
@@ -681,9 +679,9 @@ function updateDashboardWithAlerts() {
   alertList.innerHTML = '';
 
   const alerts = [
-    { farm:'Green Valley Farm', event:'Nairobi Flash Floods', payout:'1500.00', tx:'0x7f3a8e2c', severity:3, time:'9:41 AM' },
-    { farm:'Rift Valley Co-op', event:'Nairobi Flash Floods', payout:'1500.00', tx:'0xa2b94f1d', severity:3, time:'9:41 AM' },
-    { farm:'Tana River Farm', event:'Nairobi Flash Floods', payout:'1500.00', tx:'0x9c4e7a3b', severity:3, time:'9:41 AM' },
+    { farm:'Green Valley Farm', event:'Nairobi Flash Floods', payout:'356.25', severity:3, time:'9:41 AM' },
+    { farm:'Rift Valley Co-op', event:'Nairobi Flash Floods', payout:'356.25', severity:3, time:'9:41 AM' },
+    { farm:'Tana River Farm', event:'Nairobi Flash Floods', payout:'356.25', severity:3, time:'9:41 AM' },
   ];
 
   alerts.forEach((a, i) => {
@@ -693,13 +691,13 @@ function updateDashboardWithAlerts() {
     div.innerHTML = `
       <div class="farm-name">${a.farm}</div>
       <div class="event-title">Event: ${a.event}</div>
-      <div class="payout">💰 Payout: $${a.payout} USDC<br>🔗 Tx: ${a.tx}...</div>
+      <div class="payout">💰 Claim value: $${a.payout} USDC<br>🔗 Settlement: PENDING (demo)</div>
       <div class="ai-report">🤖 [AI Simulation Mode]
 Based on satellite data analysis for Flood '${a.event}' hitting ${a.farm}:
 - Estimated Crop Loss: ${a.severity * 25}%
 - Recommended Actions: Immediate irrigation control and soil nutrient check.
 - Recovery Forecast: 3-6 months based on historical recovery metrics.</div>
-      <div class="meta"><span>${a.time}</span><span class="status-paid">PAID</span></div>
+      <div class="meta"><span>${a.time}</span><span class="status-pending">PENDING</span></div>
     `;
     alertList.appendChild(div);
   });

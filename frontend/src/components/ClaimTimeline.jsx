@@ -8,6 +8,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000
 export default function ClaimTimeline({ claimNo }) {
   const { t } = useTranslation();
   const [timelineEvents, setTimelineEvents] = useState([]);
+  const [claim, setClaim] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -23,24 +24,21 @@ export default function ClaimTimeline({ claimNo }) {
 
   useEffect(() => {
     if (!claimNo) return;
+    setClaim(null);
+    setTimelineEvents([]);
+    setError(null);
 
     const fetchTimeline = async () => {
       setLoading(true);
       try {
-        const response = await axios.get(`${API_BASE_URL}/claims/${claimNo}/timeline/`);
-        setTimelineEvents(response.data);
+        const response = await axios.get(`${API_BASE_URL}/claims/${claimNo}/`);
+        setClaim(response.data);
+        setTimelineEvents(response.data.timeline || []);
         setError(null);
       } catch {
-        // Mock fallback demo timeline if backend offline
-        const mockEvents = [
-          { id: 101, status: "DETECTED", detail: "Sentinel-2 & VIIRS triggered NDVI < 0.22 anomaly event", created_at: "2026-08-19T08:10:00Z" },
-          { id: 102, status: "VERIFIED", detail: "Galileo High-Accuracy boundary check: 100% inside polygon", created_at: "2026-08-19T08:11:15Z" },
-          { id: 103, status: "TRIGGERED", detail: "Chainlink Oracle passed payout threshold to Smart Contract #0x742d...44e", created_at: "2026-08-19T08:12:00Z" },
-          { id: 104, status: "NOTIFIED", detail: "SMS alert dispatched via Gateway to farmer (+254712***89)", created_at: "2026-08-19T08:12:30Z" },
-          { id: 105, status: "PAID", detail: "M-Pesa B2C instant disbursement completed (Ref: MP992384728)", created_at: "2026-08-19T08:13:05Z" }
-        ];
-        setTimelineEvents(mockEvents);
-        setError(null);
+        setClaim(null);
+        setTimelineEvents([]);
+        setError(t("timeline_load_failed"));
       } finally {
         setLoading(false);
       }
@@ -49,13 +47,15 @@ export default function ClaimTimeline({ claimNo }) {
     fetchTimeline();
     const interval = setInterval(fetchTimeline, 30000);
     return () => clearInterval(interval);
-  }, [claimNo]);
+  }, [claimNo, t]);
 
-  if (loading && timelineEvents.length === 0) return <div className="p-6 text-sm text-muted-foreground">{t("loading_timeline")}</div>;
+  if (loading && !claim) return <div className="p-6 text-sm text-muted-foreground">{t("loading_timeline")}</div>;
   if (error) return <div className="p-6 text-sm text-red-500">{error}</div>;
   if (!claimNo) return <div className="p-6 text-sm text-muted-foreground">{t("select_claim_to_view_timeline")}</div>;
+  if (!claim) return <div className="p-6 text-sm text-muted-foreground">{t("timeline_load_failed")}</div>;
 
-  const mockTxHash = "0x8f2a93c4e1b8529d3b7610fa728c0b29d47219ea81bc0931d87192847aef92a1";
+  const txHash = claim.tx_hash || null;
+  const isOnChain = Boolean(txHash);
 
   return (
     <div className="glass-panel p-6 rounded-2xl shadow-lg border border-border/80 bg-card space-y-6">
@@ -68,33 +68,45 @@ export default function ClaimTimeline({ claimNo }) {
           <p className="text-xs text-muted-foreground mt-0.5">{t("claim_number_label")}: <span className="font-mono font-bold text-foreground">{claimNo}</span></p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
+            isOnChain
+              ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+              : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+          }`}>
             <ShieldCheck className="w-3.5 h-3.5" />
-            {t("blockchain_status_verified")}
+            {isOnChain ? t("blockchain_status_verified") : t("timeline_pending")}
           </span>
         </div>
       </div>
 
       {/* On-Chain Execution Block */}
-      <div className="p-3.5 rounded-xl bg-muted/40 border border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+      <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
+        isOnChain ? "bg-muted/40 border-border/60" : "bg-amber-500/5 border-amber-500/20"
+      }`}>
         <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-lg bg-primary/10 text-primary">
+          <div className={`p-2 rounded-lg ${isOnChain ? "bg-primary/10 text-primary" : "bg-amber-500/10 text-amber-600"}`}>
             <Cpu className="w-4 h-4" />
           </div>
           <div>
-            <div className="font-semibold text-foreground">{t("polygon_smart_contract")}</div>
-            <div className="font-mono text-muted-foreground text-[11px] truncate max-w-[220px] sm:max-w-xs">{mockTxHash}</div>
+            <div className="font-semibold text-foreground">
+              {isOnChain ? t("polygon_smart_contract") : t("timeline_pending")}
+            </div>
+            <div className="font-mono text-muted-foreground text-[11px] truncate max-w-[220px] sm:max-w-xs">
+              {txHash || t("no_tx_hash_recorded")}
+            </div>
           </div>
         </div>
-        <a
-          href={`https://polygonscan.com/tx/${mockTxHash}`}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 text-primary hover:underline font-medium shrink-0"
-        >
-          {t("view_on_polygonscan")}
-          <ExternalLink className="w-3.5 h-3.5" />
-        </a>
+        {isOnChain && (
+          <a
+            href={`https://polygonscan.com/tx/${txHash}`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-primary hover:underline font-medium shrink-0"
+          >
+            {t("view_on_polygonscan")}
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        )}
       </div>
 
       {/* Timeline Steps */}

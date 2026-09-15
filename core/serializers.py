@@ -3,6 +3,8 @@ from rest_framework import serializers
 from .models import Farm, DisasterEvent, RiskAlert, Claim, ClaimTimeline
 
 class FarmSerializer(GeoFeatureModelSerializer):
+    PRIVATE_FIELDS = {'owner', 'phone_number', 'wallet_address'}
+
     class Meta:
         model = Farm
         geo_field = "geofence"
@@ -11,6 +13,20 @@ class FarmSerializer(GeoFeatureModelSerializer):
             'gnss_device_id', 'gnss_accuracy_m', 'gnss_captured_at', 'created_at'
         ]
         read_only_fields = ['owner']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        is_owner = (
+            request
+            and request.user.is_authenticated
+            and instance.owner_id == request.user.id
+        )
+        if not is_owner:
+            properties = data.get('properties', {})
+            for field in self.PRIVATE_FIELDS:
+                properties.pop(field, None)
+        return data
 
 class DisasterEventSerializer(GeoFeatureModelSerializer):
     class Meta:

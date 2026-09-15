@@ -33,6 +33,8 @@ contract AgriGuardParametric {
         string memory _geoHash
     ) public {
         require(msg.sender == oracleAdmin, "Only EO Oracle can create policies");
+        require(_farmerWallet != address(0), "Farmer wallet is required");
+        require(_coverageAmount > 0, "Coverage amount must be positive");
         policyCount++;
         policies[policyCount] = Policy(_farmerWallet, _coverageAmount, _geoHash, true);
         emit PolicyCreated(policyCount, _farmerWallet, _coverageAmount, _geoHash);
@@ -43,8 +45,10 @@ contract AgriGuardParametric {
         Policy storage p = policies[_policyId];
         require(p.isActive, "Policy is not active");
 
+        // State changes precede the external token call. The transaction reverts
+        // if the transfer fails, which also restores the active policy flag.
+        p.isActive = false;
         require(IERC20(usdcToken).transfer(p.farmerWallet, p.coverageAmount), "USDC transfer failed");
-        p.isActive = false;  // Prevent double payouts
 
         emit PayoutTriggered(_policyId, p.farmerWallet, p.coverageAmount, _disasterType);
     }

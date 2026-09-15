@@ -1,440 +1,172 @@
-# AgriGuard — 04: Parametric Insurance Trigger Logic & Code Prototype
+# AgriGuard - Trigger Logic and Code
 
-> Complete trigger pipeline: Data Ingestion → Spatial Analysis → Parametric Check → Smart Contract → Notification.
+> **Status:** This document describes the implementation in this repository. The source files are authoritative.
+>
+> **Honest boundary:** GNSS/WGS84 boundaries, PostGIS intersections, crop-specific threshold rules, EONET event ingestion, REST/WebSocket flows, AI reports, and SMS fallbacks are implemented. Demo metrics are simulated. The Solidity contract is a reference escrow design and is not called by the current settlement service. An unconfigured or failed transfer leaves the claim `PENDING`; AgriGuard never fabricates a transaction hash.
 
----
+## 1. Trigger Pipeline
 
-## Trigger Pipeline Overview
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    TRIGGER PIPELINE OVERVIEW                      │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  ① DATA INGESTION                                                 │
-│     NASA EONET API ──→ fetch_nasa_eonet.py (Celery Beat, 6h)     │
-│     Demo Simulator ──→ UI toggle / API trigger                   │
-│     Django Signal   ──→ post_save(DisasterEvent) auto-trigger    │
-│                                                                   │
-│  ② SPATIAL ANALYSIS (process_disaster_event task)                │
-│     PostGIS: Farm.geofence ST_Intersects DisasterEvent.area      │
-│     → Returns QuerySet of affected farms                         │
-│                                                                   │
-│  ③ PARAMETRIC CONDITION CHECK                                    │
-│     IF severity >= THRESHOLD:                                     │
-│       payout = $500 × severity_level                             │
-│       → Trigger Smart Contract                                   │
-│                                                                   │
-│  ④ SMART CONTRACT EXECUTION                                      │
-│     Web3.py → AgriGuardParametric.triggerPayout(policyId, type)  │
-│     USDC stablecoin → Farmer's wallet                            │
-│                                                                   │
-│  ⑤ NOTIFICATION & REPORTING                                      │
-│     Twilio SMS → Farmer's phone (USSD fallback planned)          │
-│     WebSocket → MapLibre dashboard real-time update              │
-│     OpenAI → AI damage estimation report                         │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
+```text
+GNSS/WGS84 farm boundary
+        |
+NASA EONET event footprint / labeled demo event
+        |
+PostGIS ST_Intersects
+        |
+Crop-specific parametric rules
+        |
+Claim + evidence hash + timeline
+        |
+Configured ERC-20 settlement OR explicit PENDING status
+        |
+WebSocket update + Twilio SMS + OpenAI report fallback
 ```
 
----
+The map also displays live Esri Living Atlas layers for VIIRS fire activity, GEOGLOWS streamflow, and stream gauges. Direct threshold ingestion from those layers is roadmap work, so the demo uses clearly labeled simulated metrics.
 
-## 1. Core Data Models (Django + PostGIS)
-
-**File: `core/models.py`** — The GNSS-anchored data foundation. Farm geofence boundaries stored as `PolygonField` (`geofence`), disaster zones as `PolygonField` (`affected_area`), spatial intersection via PostGIS `ST_Intersects`.
+## 2. GNSS-Anchored Farm Model
 
 ```python
-from django.contrib.gis.db import models
-from django.contrib.auth.models import User
-
 class Farm(models.Model):
-    """Each farm is anchored to a Galileo GNSS geofence polygon."""
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='farms')
     name = models.CharField(max_length=255)
-    geofence = models.PolygonField(srid=4326)      # GNSS geofence boundary
-    phone_number = models.CharField(max_length=20)  # SMS alert target
+    geofence = models.PolygonField(
+        srid=4326,
+        help_text="GNSS/WGS84 boundary polygon",
+    )
+    gnss_device_id = models.CharField(max_length=100, blank=True, default='')
+    gnss_accuracy_m = models.FloatField(null=True, blank=True)
+    gnss_captured_at = models.DateTimeField(null=True, blank=True)
+    crop_type = models.CharField(max_length=50, default='maize')
+    phone_number = models.CharField(max_length=20)
     wallet_address = models.CharField(max_length=42, null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+```
 
-    def __str__(self):
-        return f"{self.name} ({self.owner.username})"
+The registration API validates that the submitted geometry is a WGS84 polygon and stores the optional GNSS capture metadata.
 
-class DisasterEvent(models.Model):
-    """Disaster events sourced from NASA EONET or manual sketch input."""
-    EVENT_TYPES = (
-        ('FLOOD', 'Flood'),
-        ('DROUGHT', 'Drought'),
-        ('HEATWAVE', 'Heatwave'),
+## 3. Parametric Decision Engine
+
+Thresholds are crop-specific. For example, maize has a flood threshold of `2.5 m` for `3 days`, a wildfire threshold of `5 ha`, a drought trigger at `NDWI < -0.2`, and a heatwave trigger at a `+2.0 C` anomaly for `3 days`.
+
+```python
+trigger_results = engine.evaluate_farm_status(farm, event)
+
+if not trigger_results['alert_needed']:
+    continue
+
+if trigger_results['claim_triggered']:
+    payout_info = engine.process_payout(farm, event, trigger_results)
+```
+
+The payout calculation uses the farm area capped to a realistic smallholder envelope, disaster severity, and confidence:
+
+```python
+payout = (
+    Decimal('25.00')
+    * insured_area_ha
+    * Decimal(event.severity_level)
+    * Decimal(str(trigger_results['confidence_score']))
+)
+```
+
+This avoids making a hand-drawn or erroneous large polygon produce an unrealistically large claim.
+
+## 4. Orchestration in `core/tasks.py`
+
+```python
+affected_farms = Farm.objects.filter(
+    geofence__intersects=event.affected_area
+).distinct()
+
+for farm in affected_farms:
+    trigger_results = engine.evaluate_farm_status(farm, event)
+    if not trigger_results['alert_needed']:
+        continue
+
+    alert, created = RiskAlert.objects.get_or_create(
+        farm=farm,
+        event=event,
+        defaults={
+            'status': 'DISASTER' if trigger_results['claim_triggered'] else 'WARNING',
+            'confidence': trigger_results['confidence_score'] * 100,
+        },
     )
-    title = models.CharField(max_length=255)
-    external_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
-    event_type = models.CharField(max_length=50, choices=EVENT_TYPES)
-    affected_area = models.PolygonField(srid=4326)  # Disaster polygon
-    start_date = models.DateTimeField()
-    end_date = models.DateTimeField(null=True, blank=True)
-    severity_level = models.IntegerField(default=1)  # 1=Low, 2=Medium, 3=High
-
-    def __str__(self):
-        return f"[{self.event_type}] {self.title}"
-
-class RiskAlert(models.Model):
-    """Join table: links affected farms to disaster events with payout status."""
-    STATUS_CHOICES = (
-        ('PENDING', 'Pending SMS'),
-        ('SENT', 'SMS Sent'),
-        ('TRIGGERED', 'Insurance Triggered'),
-        ('PAID', 'Smart Contract Paid'),
-    )
-    farm = models.ForeignKey(Farm, on_delete=models.CASCADE, related_name='alerts')
-    event = models.ForeignKey(DisasterEvent, on_delete=models.CASCADE)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
-    tx_hash = models.CharField(max_length=66, null=True, blank=True)
-    payout_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    ai_damage_report = models.TextField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"Alert for {self.farm.name} - {self.event.title}"
 ```
 
----
+For an approved claim, AgriGuard:
 
-## 2. Core Trigger Logic (Celery Task)
+1. Creates the claim with status `PENDING`.
+2. Builds a SHA-256 evidence hash that includes the event, confidence, farm ID, and GNSS metadata.
+3. Writes a claim timeline for detection, verification, trigger, and notification.
+4. Attempts a configured ERC-20 settlement.
+5. Retains `PENDING` and `tx_hash=None` if settlement is unavailable or fails.
+6. Sends WebSocket, SMS, and AI-report tasks without making settlement success a prerequisite.
 
-**File: `core/tasks.py`** — The heart of the parametric engine. Six sequential steps from spatial query to SMS notification.
+## 5. ERC-20 Settlement Path
+
+`core/services/blockchain_service.py` treats `SMART_CONTRACT_ADDRESS` as the ERC-20 token address. It validates the wallet and amount, converts USD to token units, signs the transfer from the oracle wallet, and returns a real transaction hash only after the node accepts the transaction.
+
+Required settings:
+
+```dotenv
+WEB3_PROVIDER_URI=
+WEB3_PRIVATE_KEY=
+SMART_CONTRACT_ADDRESS=
+WEB3_PAYOUT_DECIMALS=6
+LIVE_SETTLEMENT_ENABLED=True
+```
+
+Credentials alone never trigger a real transfer. `LIVE_SETTLEMENT_ENABLED`
+must also be `True`; if any required setting is missing or the gate is false,
+the task logs the reason and leaves the claim pending. This behavior is covered
+by tests.
+
+## 6. NASA EONET Event Ingestion
+
+`core/management/commands/fetch_nasa_eonet.py` runs every six hours through Celery Beat. It ingests severe-storm and wildfire event footprints as GeoDjango polygons.
+
+EONET does not provide verified flood depth, duration, or fire area for this workflow. The command therefore stores:
 
 ```python
-from celery import shared_task
-from web3 import Web3
-import os, uuid
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
-
-@shared_task
-def process_disaster_event(event_id):
-    """
-    When a new disaster event is created (from NASA EONET or manual sketch):
-    1. PostGIS spatial query: find farms inside the disaster polygon
-    2. Parametric condition: if severity >= threshold, auto-payout
-    3. Web3 smart contract execution (real ETH + mock fallback)
-    4. WebSocket real-time push to MapLibre dashboard
-    5. Async AI damage report generation
-    6. SMS notification to farmer via Twilio
-    """
-    from .models import DisasterEvent, Farm, RiskAlert
-
-    event = DisasterEvent.objects.get(id=event_id)
-
-    # ═══ STEP 1: GNSS Spatial Query (PostGIS ST_Intersects) ═══
-    # Galileo GNSS coordinates → PolygonField. Earth Observation polygon → PolygonField.
-    # PostGIS performs the intersection: "is this farm inside the disaster zone?"
-    affected_farms = Farm.objects.filter(geofence__intersects=event.affected_area)
-
-    alerts_created = 0
-    for farm in affected_farms:
-        alert, created = RiskAlert.objects.get_or_create(
-            farm=farm, event=event, defaults={'status': 'PENDING'}
-        )
-
-        if created:
-            alerts_created += 1
-
-            # ═══ STEP 2: Parametric Condition Check ═══
-            # Payout = base_amount × severity (pure parametric — no human judgment)
-            base_payout = 500.00    # USDC
-            payout = base_payout * event.severity_level
-
-            # ═══ STEP 3: Web3 Smart Contract Payout ═══
-            web3_url = os.environ.get('WEB3_PROVIDER_URI')
-            private_key = os.environ.get('WEB3_PRIVATE_KEY')
-            tx_hash = None
-
-            if web3_url and private_key and farm.wallet_address:
-                try:
-                    w3 = Web3(Web3.HTTPProvider(web3_url))
-                    account = w3.eth.account.from_key(private_key)
-                    nonce = w3.eth.get_transaction_count(account.address)
-                    tx = {
-                        'nonce': nonce,
-                        'to': farm.wallet_address,
-                        'value': w3.to_wei(0.001, 'ether'),
-                        'gas': 21000,
-                        'gasPrice': w3.eth.gas_price,
-                        'chainId': w3.eth.chain_id,
-                    }
-                    signed_tx = w3.eth.account.sign_transaction(tx, private_key)
-                    tx_hash = w3.to_hex(w3.eth.send_raw_transaction(
-                        signed_tx.rawTransaction
-                    ))
-                except Exception:
-                    tx_hash = "0x" + uuid.uuid4().hex + uuid.uuid4().hex[:8]
-            else:
-                tx_hash = "0x" + uuid.uuid4().hex + uuid.uuid4().hex[:8]
-
-            # Update alert record
-            alert.status = 'PAID'
-            alert.tx_hash = tx_hash
-            alert.payout_amount = payout
-            alert.save()
-
-            # ═══ STEP 4: WebSocket Real-time Push ═══
-            channel_layer = get_channel_layer()
-            async_to_sync(channel_layer.group_send)(
-                'alerts_group',
-                {'type': 'send_alert', 'message': {
-                    'type': 'NEW_ALERT',
-                    'data': {
-                        'id': alert.id,
-                        'farm_name': farm.name,
-                        'event_title': event.title,
-                        'status': alert.status,
-                        'payout_amount': str(payout),
-                        'tx_hash': tx_hash,
-                        'created_at': alert.created_at.isoformat(),
-                    }
-                }}
-            )
-
-            # ═══ STEP 5: Async AI Damage Report ═══
-            generate_ai_damage_report.delay(alert.id)
-
-            # ═══ STEP 6: SMS Alert to Farmer ═══
-            message = (
-                f"URGENT: {event.get_event_type_display()} alert for "
-                f"'{farm.name}'. Smart contract triggered. "
-                f"Payout: ${payout} USDC. TxHash: {tx_hash[:10]}..."
-            )
-            send_sms_alert.delay(farm.phone_number, message)
-
-    return (f"Processed Event {event_id}. "
-            f"Affected: {affected_farms.count()}. Payouts: {alerts_created}.")
-```
-
----
-
-## 3. NASA EONET Auto-Fetch
-
-**File: `core/management/commands/fetch_nasa_eonet.py`** — Celery Beat scheduled every 6 hours via `crontab(minute=0, hour='*/6')`.
-
-```python
-import requests
-from django.core.management.base import BaseCommand
-from django.contrib.gis.geos import Polygon, Point
-from core.models import DisasterEvent
-from core.tasks import process_disaster_event
-from django.utils.dateparse import parse_datetime
-
-class Command(BaseCommand):
-    help = 'Fetches real-time disaster data from NASA EONET API and triggers analysis'
-
-    def handle(self, *args, **kwargs):
-        url = ("https://eonet.gsfc.nasa.gov/api/v3/events"
-               "?status=open&category=severeStorms,wildfires&limit=10")
-        response = requests.get(url, timeout=10)
-        data = response.json()
-
-        events_created = 0
-        for event_data in data.get('events', []):
-            title = event_data.get('title')
-            external_id = event_data.get('id')
-            categories = event_data.get('categories', [])
-            geometries = event_data.get('geometry', [])
-
-            if not geometries:
-                continue
-
-            # Map NASA categories to AgriGuard event types
-            category_id = categories[0]['id'] if categories else ''
-            event_type = 'HEATWAVE' if category_id == 'wildfires' else 'FLOOD'
-
-            # Convert NASA Point → 50km buffer polygon
-            coords = geometries[0].get('coordinates')
-            point = Point(coords[0], coords[1], srid=4326)
-            point.transform(3857)                         # WGS84 → Mercator
-            affected_area = point.buffer(50000)            # 50km radius
-            affected_area.transform(4326)                  # Mercator → WGS84
-
-            # Deduplicate by NASA external_id, then create + auto-trigger
-            if not DisasterEvent.objects.filter(external_id=external_id).exists():
-                event = DisasterEvent.objects.create(
-                    title=f"NASA: {title}",
-                    external_id=external_id,
-                    event_type=event_type,
-                    affected_area=affected_area,
-                    start_date=parse_datetime(geometries[0].get('date')),
-                    severity_level=3,
-                )
-                events_created += 1
-                process_disaster_event.delay(event.id)
-
-        self.stdout.write(f"Created {events_created} new disaster events.")
-```
-
----
-
-## 4. Auto-Trigger via Django Signal
-
-**File: `core/signals.py`** — Fire-and-forget: any new DisasterEvent automatically triggers the full Celery pipeline.
-
-```python
-from django.db.models.signals import post_save
-from django.dispatch import receiver
-from .models import DisasterEvent
-from .tasks import process_disaster_event
-
-@receiver(post_save, sender=DisasterEvent)
-def trigger_analysis_on_new_event(sender, instance, created, **kwargs):
-    """Every new disaster event → automatic Celery analysis pipeline."""
-    if created:
-        process_disaster_event.delay(instance.id)
-```
-
----
-
-## 5. Solidity Smart Contract
-
-**File: `contracts/AgriGuardParametric.sol`** — On-chain policy management and payout execution. GNSS geoHash embedded in policy for tamper-proof farm identification.
-
-```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
-
-contract AgriGuardParametric {
-    address public oracleAdmin;
-
-    struct Policy {
-        address farmerWallet;
-        uint256 coverageAmount;
-        string geoHash;      // GNSS bounding box hash (Galileo geo-fence)
-        bool isActive;
-    }
-
-    mapping(uint256 => Policy) public policies;
-    uint256 public policyCount;
-
-    event PolicyCreated(uint256 policyId, address farmer, uint256 amount, string geoHash);
-    event PayoutTriggered(uint256 policyId, address farmer, uint256 amount, string disasterType);
-
-    constructor() {
-        oracleAdmin = msg.sender;  // AgriGuard backend = trusted EO Oracle
-    }
-
-    function createPolicy(
-        address _farmerWallet,
-        uint256 _coverageAmount,
-        string memory _geoHash
-    ) public {
-        policyCount++;
-        policies[policyCount] = Policy(_farmerWallet, _coverageAmount, _geoHash, true);
-        emit PolicyCreated(policyCount, _farmerWallet, _coverageAmount, _geoHash);
-    }
-
-    function triggerPayout(uint256 _policyId, string memory _disasterType) public {
-        require(msg.sender == oracleAdmin, "Only EO Oracle can trigger payouts");
-        Policy storage p = policies[_policyId];
-        require(p.isActive, "Policy is not active");
-
-        p.isActive = false;  // Prevent double payouts
-
-        payable(p.farmerWallet).transfer(p.coverageAmount);
-
-        emit PayoutTriggered(_policyId, p.farmerWallet, p.coverageAmount, _disasterType);
-    }
-
-    receive() external payable {}
+eo_metrics = {
+    'source': 'NASA EONET',
+    'ingestion_mode': 'event-footprint',
+    'threshold_metrics_verified': False,
 }
 ```
 
----
+Without verified threshold metrics, the engine produces no automatic claim. This prevents an event location from being mistaken for claim-grade evidence.
 
-## 6. REST API Manual Trigger Endpoint
+## 7. Solidity Policy Contract
 
-**File: `core/views.py`** — `POST /api/events/{id}/trigger_analysis/` for manual/UI-triggered disaster analysis.
+`contracts/AgriGuardParametric.sol` is the reference design for the insurer escrow phase:
 
-```python
-from rest_framework import viewsets
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from .tasks import process_disaster_event
+- Oracle creates a policy with a farm wallet, coverage amount, and boundary hash.
+- Oracle can trigger a payout once.
+- The contract transfers an ERC-20 token and deactivates the policy.
 
-class DisasterEventViewSet(viewsets.ModelViewSet):
-    queryset = DisasterEvent.objects.all()
-    serializer_class = DisasterEventSerializer
+The current backend does not deploy or invoke this contract. Keeping the boundary explicit makes the roadmap auditable and prevents the reference design from being presented as a live integration.
 
-    @action(detail=True, methods=['post'])
-    def trigger_analysis(self, request, pk=None):
-        """
-        POST /api/events/{id}/trigger_analysis/
-        Manually dispatches the Celery pipeline for a specific disaster event.
-        Also auto-triggered by Django post_save signal.
-        """
-        event = self.get_object()
-        process_disaster_event.delay(event.id)
-        return Response({
-            'message': 'Analysis task dispatched to Celery.',
-            'event_id': event.id
-        })
+## 8. API and Verification
+
+Manual analysis endpoint:
+
+```text
+POST /api/events/{id}/trigger_analysis/
 ```
 
----
+Demo simulation endpoint:
 
-## 7. AI Damage Estimator
-
-**File: `core/tasks.py`** — `generate_ai_damage_report()`: Async OpenAI call that produces per-farm damage assessment.
-
-```python
-@shared_task
-def generate_ai_damage_report(alert_id):
-    from .models import RiskAlert
-    alert = RiskAlert.objects.get(id=alert_id)
-
-    if not settings.OPENAI_API_KEY:
-        # Mock mode — fallback when no API key configured
-        alert.ai_damage_report = (
-            f"[AI Simulation] {alert.event.get_event_type_display()} "
-            f"'{alert.event.title}' hitting {alert.farm.name}: "
-            f"Estimated Crop Loss: {alert.event.severity_level * 25}%. "
-            f"Recovery Forecast: 3-6 months."
-        )
-        alert.save()
-        return "Mock AI Report"
-
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{
-            "role": "system", "content": "You are a concise agricultural insurance AI."
-        }, {
-            "role": "user",
-            "content": (
-                f"Generate a damage estimation report for farm '{alert.farm.name}' "
-                f"hit by {alert.event.get_event_type_display()} "
-                f"'{alert.event.title}' (severity {alert.event.severity_level}/3). "
-                f"Include crop loss estimation and recovery advice (max 3 bullets)."
-            )
-        }],
-        max_tokens=150
-    )
-    alert.ai_damage_report = f"[AI Analysis]\n{response.choices[0].message.content.strip()}"
-    alert.save()
-    return "Real AI Report"
+```text
+POST /api/events/simulate/
 ```
 
----
+The simulation endpoint injects labeled, deterministic threshold values so the complete UI workflow can be demonstrated without paid data feeds.
 
-## Celery Beat Schedule
+Run the backend tests with:
 
-**File: `config/celery.py`** — NASA EONET auto-fetch runs every 6 hours.
-
-```python
-app.conf.beat_schedule = {
-    'fetch-nasa-eonet-every-6-hours': {
-        'task': 'core.tasks.fetch_nasa_data_task',
-        'schedule': crontab(minute=0, hour='*/6'),
-    },
-}
+```bash
+python manage.py test core -v 2
 ```
 
----
-
-*Part 4 of 5 — AgriGuard Hackathon Submission, July 2026*
+The test suite covers flood, wildfire, drought, and heatwave thresholds; farm permissions; idempotent event processing; GNSS evidence fields; NASA ingestion integrity; Web3 6/7 signing compatibility; and the safety gates that prevent credentials alone from creating fake payouts or real external actions. Live AI, SMS, and settlement each require an explicit `LIVE_*_ENABLED` opt-in.

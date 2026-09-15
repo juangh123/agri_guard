@@ -8,14 +8,15 @@ class Command(BaseCommand):
     help = 'Idempotently seed demo users and farms for the AgriGuard demo'
 
     def handle(self, *args, **options):
-        # Demo login accounts for the frontend.
+        # The credentials are public in the README and frontend bundle. Keep this
+        # account unprivileged so it can drive the demo without exposing Django admin.
         demo_admin, admin_created = User.objects.get_or_create(
             username='demo',
-            defaults={'is_staff': True, 'is_superuser': True, 'email': 'demo@agriguard.africa'},
+            defaults={'email': 'demo@agriguard.africa'},
         )
         demo_admin.set_password('demo123')
-        demo_admin.is_staff = True
-        demo_admin.is_superuser = True
+        demo_admin.is_staff = False
+        demo_admin.is_superuser = False
         demo_admin.save()
 
         demo_farmer, farmer_created = User.objects.get_or_create(

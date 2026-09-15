@@ -26,10 +26,23 @@ class BlockchainService:
         '{"name":"","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"}]'
     )
 
+    @staticmethod
+    def _signed_transaction_bytes(signed_transaction):
+        """Support both Web3 6 and 7 signed-transaction field names."""
+        raw_transaction = getattr(signed_transaction, 'raw_transaction', None)
+        if raw_transaction is None:
+            raw_transaction = getattr(signed_transaction, 'rawTransaction')
+        return raw_transaction
+
     def __init__(self):
         """
         Initialize the connection to the Ethereum/Polygon RPC node.
         """
+        if not getattr(settings, 'LIVE_SETTLEMENT_ENABLED', False):
+            raise BlockchainConfigError(
+                "LIVE_SETTLEMENT_ENABLED is false; claims remain PENDING."
+            )
+
         rpc_url = (
             getattr(settings, 'WEB3_PROVIDER_URI', None)
             or os.getenv('WEB3_PROVIDER_URI')
@@ -104,7 +117,9 @@ class BlockchainService:
             })
 
             signed_tx = self.w3.eth.account.sign_transaction(transaction, self.private_key)
-            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            tx_hash = self.w3.eth.send_raw_transaction(
+                self._signed_transaction_bytes(signed_tx)
+            )
             
             return self.w3.to_hex(tx_hash)
             

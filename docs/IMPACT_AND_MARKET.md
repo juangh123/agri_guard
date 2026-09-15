@@ -1,16 +1,18 @@
 # AgriGuard — 03: Impact Metrics & Market Size
 
-> Quantified Impact, Milestone Roadmap, TAM/SAM/SOM Market Analysis, and SDG Alignment.
+> Projected impact, milestone roadmap, TAM/SAM/SOM analysis, and SDG alignment.
+>
+> These figures describe the product target and market thesis, not measured pilot results.
 
 ---
 
 ## Impact: Before vs. After
 
-| Metric | Traditional Insurance | AgriGuard (Parametric + GNSS) | Improvement |
+| Metric | Traditional Insurance | AgriGuard target (Parametric + GNSS) | Improvement target |
 |:---|:---|:---|---:|
-| **Claim Settlement Time** | 4–12 Weeks (human adjuster dispatch) | **< 3 Minutes** (satellite-triggered smart contract) | **99.7% faster** |
-| **Claim Verification Cost** | $50–$200 per claim (field visit) | **Near $0** (EO data + PostGIS spatial query) | **~100% reduction** |
-| **Fraud Rate** | 10–15% (subjective farmer reporting) | **Near 0%** (Galileo GNSS geo-fence + immutable satellite oracle) | **Eliminated** |
+| **Claim Settlement Time** | 4–12 Weeks (human adjuster dispatch) | **Minutes** after verified data + settlement configuration | **>99% faster** |
+| **Claim Verification Cost** | $50–$200 per claim (field visit) | **Near $0 marginal cost** for routine PostGIS evaluation | **Up to 90% lower** |
+| **Fraud Rate** | 10–15% (subjective farmer reporting) | **Reduced** through GNSS boundary metadata and auditable claim evidence | **Design objective** |
 | **Payout Currency Risk** | Local currency (depreciation risk) | **USDC Stablecoin** (dollar-denominated, no inflation loss) | **Protected** |
 | **Farmer Onboarding Reach** | Limited to large commercial farms | **Any farmer with SMS** (USSD 规划中) | **10x reach** |
 | **Premium Affordability** | $50–$200/year (unaffordable) | **~$25/year micro-premium** (90% cost reduction via automation) | **5–10x cheaper** |
@@ -21,9 +23,9 @@
 
 | Year | Key Milestones |
 |:---|:---|
-| **Year 1** | Pilot with 2 insurance partners in Kenya + Nigeria. Onboard 5,000 farmers. Validate NASA EONET → Smart Contract trigger pipeline. |
+| **Year 1** | Pilot with 2 insurance partners in Kenya + Nigeria. Onboard 5,000 farmers. Validate EONET ingestion, trusted threshold feeds, and configured settlement. |
 | **Year 2** | Scale to 25,000 farmers. Add GEOGLOWS flood forecasting integration. Launch USSD fallback channel. |
-| **Year 3** | 50,000+ farmers across East & West Africa. Integrate IoT soil sensor validation layer. 60% reduction in post-disaster bankruptcy rates. |
+| **Year 3** | 120,000+ farmers across East & West Africa. Integrate IoT soil sensor validation layer. 60% reduction in post-disaster bankruptcy rates. |
 
 ---
 
@@ -53,7 +55,7 @@ SOM (Serviceable Obtainable Market — 3-Year Target)
 |:---|:---|:---|
 | **Micro-premium margin (B2C)** | $25/policy/year | 120,000 × $25 = **$3.0M** |
 | **Platform License (B2B)** | $10K–$50K/insurer/year | Upside (not counted in base ARR target) |
-| **Smart Contract Fee** | $0.50 per payout execution | Upside (not counted in base ARR target) |
+| **Settlement Fee** | $0.50 per processed payout | Upside (not counted in base ARR target) |
 | **Total ARR (base)** | — | **~$3M** |
 
 ---
@@ -62,10 +64,10 @@ SOM (Serviceable Obtainable Market — 3-Year Target)
 
 | SDG | How AgriGuard Contributes |
 |:---|:---|
-| **SDG 1 — No Poverty** | Immediate post-disaster liquidity prevents farm bankruptcy and the poverty spiral |
+| **SDG 1 — No Poverty** | Target: faster post-disaster liquidity reduces farm bankruptcy and the poverty spiral |
 | **SDG 2 — Zero Hunger** | Protecting farmers = protecting food supply chains in vulnerable regions |
 | **SDG 13 — Climate Action** | EO monitoring ties premiums to sustainable practices; incentivizes climate-resilient farming |
-| **SDG 9 — Industry & Innovation** | First GNSS + Web3 insurance infrastructure for African agriculture |
+| **SDG 9 — Industry & Innovation** | GNSS + geospatial automation infrastructure for inclusive agricultural insurance |
 
 ---
 

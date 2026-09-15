@@ -1,6 +1,6 @@
 # 🌍 AgriGuard — Space-Grade Parametric Crop Insurance
 
-> **Parametric crop insurance for smallholder farmers — automated by satellites, settled on-chain, delivered via SMS in minutes.**
+> **Parametric crop insurance for smallholder farmers — automated with GNSS and satellite data, with an auditable ERC-20 settlement path and SMS-first delivery.**
 
 [![Hackathon](https://img.shields.io/badge/Hackathon-GNSS%204%20for%20Space%20Applications%20in%20Africa-blueviolet)](https://dorahacks.io/hackathon/satnav/detail)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -8,7 +8,19 @@
 [![PostGIS](https://img.shields.io/badge/PostGIS-3.3-orange)](https://postgis.net/)
 [![Solidity](https://img.shields.io/badge/Solidity-Web3-black)](https://soliditylang.org/)
 
-![Cover](docs/screenshots/02_dashboard.png)
+![Cover](docs/screenshots/09_overview_pipeline.png)
+
+## Live Judge Demo
+
+- Application: [https://agri-guard-api-live.vercel.app](https://agri-guard-api-live.vercel.app)
+- Login: `demo` / `demo123`
+- Persistence: PostgreSQL + PostGIS on Supabase (session pooler)
+- Real-time updates: REST + WebSocket (`/ws/alerts/`)
+
+The Vercel deployment is the stable judge-facing entry point. Claims and disaster
+events survive redeploys. OpenAI, Twilio, and on-chain settlement remain in safe
+mock or `PENDING` mode unless both their production credentials and explicit
+`LIVE_*` gates are enabled.
 
 ---
 
@@ -16,6 +28,7 @@
 
 - [🎯 The Problem](#-the-problem)
 - [💡 The Solution](#-the-solution)
+- [✅ MVP Status & Evidence Boundary](#-mvp-status--evidence-boundary)
 - [🏗️ Architecture](#%EF%B8%8F-architecture)
 - [🧠 How Parametric Insurance Works](#-how-parametric-insurance-works)
 - [🚀 Key Features](#-key-features)
@@ -28,7 +41,7 @@
 - [🛰️ GNSS Data & Evidence](#%EF%B8%8F-gnss-data--evidence)
 - [🌍 UN Sustainable Development Goals](#-un-sustainable-development-goals)
 - [🗂️ Repository Layout](#%EF%B8%8F-repository-layout)
-- [👥 Team & Certification](#-team--certification)
+- [👥 Team & Submission](#-team--submission)
 - [📜 License](#-license)
 
 ---
@@ -51,16 +64,19 @@ Traditional insurance is broken:
 
 ## 💡 The Solution
 
-**AgriGuard** inverts the model. Instead of paying claims for **what happened** on a specific farm (loss-adjustment), we trigger payouts for **what we measured from space** (satellite events).
+**AgriGuard** inverts the model. Instead of paying claims for **what happened** on a specific farm (loss-adjustment), we evaluate measurable hazard thresholds and GNSS-defined farm footprints.
 
 ```
-   🛰️  NASA EONET / NOAA    ──> detects Flood/Drought/Heatwave
+   🛰️  NASA EONET / ArcGIS  ──> live hazard events and forecast layers
             │
             ▼
-   🗄️  PostGIS spatial       ──> intersects with farm polygons
+   🗄️  PostGIS spatial       ──> intersects with GNSS farm polygons
             │
             ▼
-   ⛓️  Smart contract         ──> auto-payouts USDC in seconds
+   🧠  Parametric engine      ──> evaluates crop-specific thresholds
+            │
+            ▼
+   ⛓️  Settlement service     ──> ERC-20 transfer or explicit PENDING status
             │
             ▼
    📱  Twilio SMS            ──> farmer gets confirmation + AI report
@@ -69,15 +85,37 @@ Traditional insurance is broken:
    🌾  Farm recovers
 ```
 
-**No loss adjuster. No paperwork. No waiting. No trust gap.**
+**No routine loss adjuster. No paperwork. A transparent settlement status.**
 
-| Metric | Traditional | **AgriGuard** |
+| Metric | Traditional | **AgriGuard target** |
 |:---|---:|---:|
 | Time to payout | **12 weeks** | **3 minutes** |
-| Cost per policy | $50-100 | **$0 (gas-only)** |
-| Fraud rate | 15-20% | **0%** (parametric) |
-| Coverage of smallholders | < 3% | **Unlimited** |
+| Cost per policy | $50-100 | **Low-cost automation target** |
+| Fraud rate | 15-20% | **Reduced via GNSS evidence** |
+| Coverage of smallholders | < 3% | **SMS-first access target** |
 | Required documents | 10+ forms | **0** |
+
+---
+
+## ✅ MVP Status & Evidence Boundary
+
+AgriGuard is a working MVP, not a claim that every production integration is already live. The submission is strongest when this boundary is explicit:
+
+| Capability | Status in this repository |
+|:---|:---|
+| GNSS/WGS84 farm polygons | **Implemented** with PostGIS `PolygonField`, spatial intersection, optional device ID, accuracy, and capture timestamp metadata |
+| NASA EONET ingestion | **Implemented** as event-footprint monitoring with a six-hour Celery Beat schedule in the Docker worker stack; the Vercel API container does not host the scheduler, and ingestion never invents flood-depth or fire-area thresholds |
+| Esri Living Atlas layers | **Integrated live** on the map for VIIRS fire activity, GEOGLOWS streamflow, and stream gauges |
+| Parametric evaluation | **Implemented** with crop-specific flood, wildfire, drought, and heatwave rules |
+| REST + WebSocket workflow | **Implemented** for farms, events, alerts, claims, timelines, and live dashboard updates |
+| AI damage report | **Implemented** with OpenAI when configured; credential-only setup stays on the deterministic fallback until `LIVE_AI_ENABLED=True` |
+| SMS delivery | **Implemented** with Twilio when configured; credential-only setup stays in labeled mock mode until `LIVE_SMS_ENABLED=True` |
+| ERC-20 settlement | **Implemented code path** using a configured oracle wallet and token contract; credentials alone stay `PENDING` unless `LIVE_SETTLEMENT_ENABLED=True`, and no fake transaction hash is ever created |
+| Solidity policy contract | **Reference implementation** included for the planned insurer escrow phase; the current backend does not call it |
+| Threshold ingestion from GEOGLOWS/VIIRS | **Production roadmap**: the map consumes live layers, while the demo trigger uses clearly marked simulated metrics |
+| Raw GNSS/NMEA trace upload | **Production roadmap**; the MVP accepts the resulting WGS84 polygon and capture metadata |
+
+The one-click demo intentionally simulates threshold metrics so judges can see the complete workflow without paid API keys or real funds. The UI and API label those claims as simulated or pending where applicable.
 
 ---
 
@@ -91,7 +129,7 @@ Traditional insurance is broken:
 │              │    │              │    │              │    │              │
 │ • NASA EONET │───>│ • Celery     │───>│ • Django     │<──>│ • React 19 + │
 │ • VIIRS      │    │ • PostGIS    │    │ • DRF API    │    │  MapLibre GL │
-│ • Sentinel-1 │    │ • Django Sig │    │ • Channels   │    │ react-map-gl │
+│ • GEOGLOWS   │    │ • Django Sig │    │ • Channels   │    │ react-map-gl │
 └──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
                                               │
                                               ▼
@@ -101,7 +139,7 @@ Traditional insurance is broken:
                                     │ • Solidity       │
                                     │   AgriGuard-     │
                                     │   Parametric.sol │
-                                    │ • OpenAI GPT-3.5 │
+                                    │ • OpenAI model   │
                                     │ • Twilio SMS     │
                                     └──────────────────┘
 ```
@@ -110,7 +148,7 @@ Traditional insurance is broken:
 
 ## 🧠 How Parametric Insurance Works
 
-Parametric insurance **pays out automatically** when a measurable parameter crosses a threshold. For us, that parameter is **"did the farm's GNSS coordinates fall inside a NASA-declared disaster polygon?"**
+Parametric insurance can **settle automatically** when a measurable parameter crosses a threshold. In AgriGuard, the trigger creates an auditable claim when **the farm's GNSS boundary intersects a verified disaster footprint or labeled demo area**. A configured settlement path can then execute the transfer.
 
 ```python
 # core/tasks.py — the heart of the trigger
@@ -124,20 +162,28 @@ def process_disaster_event(event_id):
     )
 
     for farm in affected_farms:
-        # 2. Payout = base($500) × severity_level(1-3)
-        payout = 500.00 * event.severity_level       # $500 / $1,000 / $1,500
+        # 2. Claim value = $25/ha x capped insured area (<=5ha)
+        #    x severity Level (1-3) x confidence score
+        payout = engine.process_payout(
+            farm, event, trigger_results
+        )["amount"]
 
-        # 3. Auto-execute Solidity smart contract (or simulated tx-hash)
-        tx_hash = execute_payout(farm.wallet_address, payout)
+        # 3. Create the claim in PENDING state before any settlement attempt
+        claim = Claim.objects.create(
+            farm=farm, status="PENDING", payout_amount=payout, tx_hash=None
+        )
 
-        # 4. WebSocket push to live dashboard
+        # 4. A configured successful ERC-20 transfer can move the claim to PAID.
+        #    Missing credentials or a failed transfer leave it PENDING.
+
+        # 5. WebSocket push to live dashboard
         channel_layer.group_send('alerts_group', {'type': 'send_alert', ...})
 
-        # 5. Generate AI damage report (GPT-3.5)
+        # 6. Generate AI damage report (configured model or deterministic fallback)
         generate_ai_damage_report.delay(alert.id)
 
-        # 6. SMS the farmer via Twilio
-        send_sms_alert.delay(farm.phone_number, f"Payout: ${payout} USDC ...")
+        # 7. Queue SMS status to the farmer via Twilio or mock fallback
+        send_sms_alert.delay(farm.phone_number, f"Claim status: {claim.status}")
 ```
 
 > Full code in [`docs/TRIGGER_LOGIC_AND_CODE.md`](docs/TRIGGER_LOGIC_AND_CODE.md) — including the Solidity contract, Django signals, and NASA EONET ingestion.
@@ -147,21 +193,21 @@ def process_disaster_event(event_id):
 ## 🚀 Key Features
 
 ### 1. **Real-time WebSocket Alerts**
-Django Channels pushes every payout to connected dashboards in <100ms.
+Django Channels pushes claim and alert updates to connected dashboards.
 
 ### 2. **Interactive Geospatial Visualization**
 MapLibre GL map (react-map-gl) rendering farm geofences and live disaster polygons — see disaster zones in context.
 
 ### 3. **AI Damage Assessment**
-GPT-3.5 generates crop loss estimates + recovery plans from satellite data.
+The configured OpenAI model generates crop loss estimates and recovery guidance from the available event context.
 
 ### 4. **Multilingual UI**
-English, French, Kiswahili — accessible to 250M+ African smallholders.
+English, French, Kiswahili, Chinese, Spanish, Portuguese, and Arabic.
 
-### 5. **Smart Contract Auto-Payout**
-`contracts/AgriGuardParametric.sol` enforces payout logic on-chain — no human in the loop.
+### 5. **Auditable Settlement Path**
+The backend can sign an ERC-20 transfer from a configured insurer/oracle wallet. `contracts/AgriGuardParametric.sol` is included as the policy-escrow reference implementation; it is not invoked by the current MVP.
 
-> ⚠️ 合约为参考实现（reference implementation）；当前链上赔付走 Web3.py 直转 + Mock 回退。
+> ⚠️ If Web3 credentials or a wallet are missing, the claim is recorded as `PENDING` with no fabricated transaction hash. The interactive demo uses this safe fallback.
 
 ### 6. **SMS Alerts（USSD 规划中）**
 Farmers receive claim updates via SMS (Twilio, with Mock fallback). A USSD channel for basic feature phones is planned — see [Roadmap](#-roadmap).
@@ -176,12 +222,12 @@ Farmers receive claim updates via SMS (Twilio, with Mock fallback). A USSD chann
 | **Database** | PostgreSQL 15 + PostGIS 3.3 (spatial queries) |
 | **Async Tasks** | Celery 5.3 + Redis 7 |
 | **Real-time** | Django Channels + Daphne WebSocket |
-| **AI** | OpenAI GPT-3.5-turbo |
+| **AI** | OpenAI chat model (configurable via `OPENAI_MODEL`) |
 | **SMS** | Twilio API (with Mock fallback) |
 | **Blockchain** | Solidity + Web3.py (Ethereum-compatible) |
 | **Frontend** | React 19 + Vite + MapLibre GL (react-map-gl) |
 | **Geospatial** | PostGIS spatial queries + MapLibre/Esri map rendering |
-| **i18n** | react-i18next (EN/FR/SW) — `frontend/src/i18n/config.js` |
+| **i18n** | react-i18next (EN/FR/SW/ZH/ES/PT/AR) — `frontend/src/i18n/config.js` |
 | **Container** | Docker + Docker Compose |
 | **API** | DRF REST: `/api/farms/` · `/api/events/` · `/api/alerts/` · `/api/claims/` |
 
@@ -205,7 +251,7 @@ cd agri_guard
 ```
 
 The `start.ps1` script will:
-1. Build and start all 5 Docker services (db, web, redis, celery, frontend)
+1. Build and start all 6 Docker services (db, web, redis, celery, celery-beat, frontend)
 2. Run `makemigrations` + `migrate`
 3. Prompt you to create a Django superuser
 4. Open the API at `http://127.0.0.1:8000/api/`
@@ -225,8 +271,11 @@ docker compose up -d --build
 
 Demo login accounts created by `seed_demo_data`:
 
-- Insurer/admin: `demo` / `demo123`
+- Insurer demo: `demo` / `demo123` (intentionally unprivileged)
 - Farmer: `farmer` / `farmer123`
+
+The public demo credentials are deliberately not staff or superuser accounts.
+Create a separate `createsuperuser` account when Django admin access is needed.
 
 ### Frontend setup (local dev)
 
@@ -249,7 +298,9 @@ python -m venv .venv
 
 The script starts PostgreSQL/PostGIS from `postgresql-binaries`, applies migrations, seeds demo
 data, and launches Daphne and Vite. Celery tasks run eagerly and WebSocket notifications use an
-in-memory channel layer, so no Redis service is required for the local demo.
+in-memory channel layer, so no Redis service is required for the local demo. The alert consumer
+also polls the shared database for new alerts (`ALERT_DB_POLL_INTERVAL`, default 3s), which keeps
+multiple server instances in sync even without Redis.
 
 ### Environment variables
 
@@ -263,24 +314,31 @@ CELERY_BROKER_URL=redis://redis:6379/0
 
 # Optional (will gracefully degrade to Mock mode if not set)
 OPENAI_API_KEY=<your-openai-key>
+OPENAI_MODEL=gpt-4o-mini
+LIVE_AI_ENABLED=False
 TWILIO_ACCOUNT_SID=<your-sid>
 TWILIO_AUTH_TOKEN=<your-token>
 TWILIO_PHONE_NUMBER=<your-twilio-number>
+LIVE_SMS_ENABLED=False
 WEB3_PROVIDER_URI=<your-rpc-url>
 WEB3_PRIVATE_KEY=<your-private-key>
+LIVE_SETTLEMENT_ENABLED=False
 ```
 
 > 🔒 The repository ships **without** any `.env` — secrets are never committed. See `.gitignore`.
+>
+> Real SMS and on-chain transfers stay disabled unless the corresponding
+> `LIVE_*_ENABLED` flag is explicitly set to `True`.
 
 ---
 
 ## 📺 Demo & Presentation
 
-### 🎥 Interactive Live Demo (no install needed)
+### 🎥 Interactive Demo (no install needed)
 
 **[Open the interactive demo →](docs/INTERACTIVE_DEMO.html)**
 
-A self-contained HTML simulation of the full pipeline — login → dashboard → disaster trigger → smart contract payout → SMS → AI report. Works offline, in any modern browser.
+A self-contained HTML simulation of the full pipeline — login → dashboard → disaster trigger → settlement status → SMS → AI report. Works offline, in any modern browser.
 
 > Open `docs/INTERACTIVE_DEMO.html` directly in Chrome/Edge/Firefox. Click **▶ Start Auto-Demo** in the bottom-left for an automated walkthrough, or step through manually.
 
@@ -288,18 +346,16 @@ A self-contained HTML simulation of the full pipeline — login → dashboard �
 
 | Step | Screenshot | What it shows |
 |:---:|:---|:---|
-| 1 | ![Login](docs/screenshots/01_login.png) | Authentication screen |
-| 2 | ![Dashboard](docs/screenshots/02_dashboard.png) | MapLibre/Esri map + 8 farms + live disaster layers |
-| 3 | ![Disaster](docs/screenshots/03_disaster_config.png) | Draw-and-configure disaster event |
-| 4 | ![Pipeline](docs/screenshots/04_pipeline_start.png) | 6-step parametric insurance pipeline |
-| 5 | ![Payout](docs/screenshots/05_payout.png) | Smart contract payout (3 farms × $1,500) |
-| 6 | ![SMS](docs/screenshots/06_sms.png) | Twilio SMS notification to farmer |
-| 7 | ![AI Report](docs/screenshots/07_ai_report.png) | GPT-3.5 damage assessment |
-| 8 | ![Final](docs/screenshots/08_dashboard_final.png) | Live alert feed updated in real-time |
+| 1 | ![Overview](docs/screenshots/09_overview_pipeline.png) | Portfolio KPIs with pending pipeline value separated from completed settlements |
+| 2 | ![Live Map](docs/screenshots/10_live_map.png) | MapLibre/Esri map with GNSS farm boundaries and live disaster layers |
+| 3 | ![Claims](docs/screenshots/11_claims_pending.png) | Auditable claim timeline ending in explicit `PENDING`, with no fake TxHash |
+| 4 | ![Reports](docs/screenshots/12_reports_pipeline.png) | Operational report separating `$ PENDING` from `$ PAID` |
+| 5 | ![SMS](docs/screenshots/13_sms_alerts.png) | Multilingual SMS status update showing `PENDING` settlement |
+| 6 | ![Mobile Map](docs/screenshots/14_mobile_map.png) | Mobile layout for low-bandwidth field use |
 
 ### 📑 Pitch Deck
 
-Full 12-slide presentation: **[`docs/AgriGuard_Presentation.pptx`](docs/AgriGuard_Presentation.pptx)**
+Full 12-slide presentation: **[`docs/AgriGuard_Presentation_submission.pptx`](docs/AgriGuard_Presentation_submission.pptx)**
 
 Or in Markdown form: **[`docs/SUBMISSION_FULL.md`](docs/SUBMISSION_FULL.md)** · **[`docs/pitch/PITCH_SCRIPT.md`](docs/pitch/PITCH_SCRIPT.md)**
 
@@ -311,19 +367,18 @@ After setup, you can trigger a test disaster event end-to-end:
 
 ```bash
 # 1. Easiest demo path: log in as demo/demo123 and click
-#    "Simulate Disaster (God Mode)" on the dashboard. The frontend calls
+#    "Run Scenario Demo" on the dashboard. The frontend calls
 #    POST /api/events/simulate/ and runs the full pipeline.
 
 # 2. Or trigger via Django admin:
 #    http://localhost:8000/admin/core/disasterevent/add/
-#    → http://localhost:8000/admin/core/disasterevent/add/
 
-# 2. Or trigger via API:
+# 3. Or trigger via API:
 python trigger_demo.py
 # Output: "Triggering analysis for Event ID: 1..."
 #         "Result: {'status': 'analysis triggered'}"
 
-# 3. Or fetch NASA EONET events automatically:
+# 4. Or fetch NASA EONET events automatically (monitoring only):
 docker compose exec web python manage.py fetch_nasa_eonet
 ```
 
@@ -345,10 +400,10 @@ Mock SMS Sent Successfully!
 
 | Metric | Year 1 | Year 2 | Year 3 |
 |:---|---:|---:|---:|
-| Farmers insured | 5,000 | 25,000 | **50,000+** |
+| Farmers insured | 5,000 | 25,000 | **120,000+** |
 | Countries | 2 (KE, NG) | 5 | 10+ |
 | Disaster types | Flood, Drought | + Heatwave | + Hail, Locusts |
-| Avg. payout | $1,200 | $1,500 | $2,000 |
+| Maximum per-claim payout (5 ha cap) | $375 | $375 | $375 |
 | Bankruptcy rate reduction | –20% | –40% | **–60%** |
 
 ### Market Sizing
@@ -372,7 +427,7 @@ See [`docs/JUDGING_CRITERIA_MAPPING.md`](docs/JUDGING_CRITERIA_MAPPING.md).
 
 ## 🛰️ GNSS Data & Evidence
 
-GNSS farm boundaries are stored as WGS84 polygons, spatially intersected in PostGIS, and linked to claims through SHA-256 evidence hashes. The production roadmap extends this with accuracy metadata and raw trace ingestion.
+GNSS farm boundaries and receiver/accuracy/timestamp metadata are stored for each polygon, spatially intersected in PostGIS, and linked to claims through SHA-256 evidence hashes. The production roadmap extends this with raw trace ingestion and on-chain policy metadata.
 
 See [`docs/GNSS_DATA_CAPTURE_AND_EVIDENCE.md`](docs/GNSS_DATA_CAPTURE_AND_EVIDENCE.md).
 
@@ -382,9 +437,9 @@ See [`docs/GNSS_DATA_CAPTURE_AND_EVIDENCE.md`](docs/GNSS_DATA_CAPTURE_AND_EVIDEN
 
 | SDG | Alignment |
 |:---:|:---|
-| **1** No Poverty | Insurance prevents 6M farmer bankruptleys/year |
+| **1** No Poverty | Target: parametric liquidity helps prevent disaster-driven farm bankruptcies |
 | **2** Zero Hunger | Stabilizes smallholder food production |
-| **9** Industry & Innovation | First-of-kind Web3 + satellite insurance stack |
+| **9** Industry & Innovation | Integrated GNSS, Earth-observation, and settlement-status workflow |
 | **13** Climate Action | Turns climate risk into a financialized hedge |
 
 ---
@@ -403,18 +458,18 @@ agri_guard/
 │   ├── urls.py
 │   ├── consumers.py            # WebSocket consumer
 │   └── management/commands/
-│       └── fetch_nasa_eonet.py # Celery Beat: fetch NASA EONET every 6 hours
+│       └── fetch_nasa_eonet.py # Celery Beat schedule: NASA EONET every 6 hours (Docker stack)
 ├── contracts/                  # Reference Solidity contract (AgriGuardParametric.sol)
 ├── frontend/                   # React 19 + MapLibre/Esri app
 │   ├── src/pages/
 │   │   ├── Login.jsx
 │   │   ├── Register.jsx        # Farmer onboarding (GNSS + phone)
 │   │   └── Dashboard.jsx       # Map + analytics + alert feed
-│   ├── src/i18n/config.js      # i18n: en, fr, sw
+│   ├── src/i18n/config.js      # i18n: EN/FR/SW/ZH/ES/PT/AR
 │   └── package.json
 ├── docs/                       # Hackathon submission materials
 │   ├── INTERACTIVE_DEMO.html   # Self-contained demo (open in browser)
-│   ├── AgriGuard_Presentation.pptx
+│   ├── AgriGuard_Presentation_submission.pptx
 │   ├── SUBMISSION_FULL.md      # Combined submission document
 │   ├── ARCHITECTURE.md         # Mermaid system diagram
 │   ├── TRIGGER_LOGIC_AND_CODE.md
@@ -426,7 +481,7 @@ agri_guard/
 │   │   ├── PITCH.md            # 90s pitch + 250-word abstract
 │   │   ├── PITCH_SCRIPT.md
 │   │   └── DECK_OUTLINE.md
-│   └── screenshots/            # 10 demo screenshots
+│   └── screenshots/            # Six current verified captures plus legacy reference images
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
@@ -437,17 +492,16 @@ agri_guard/
 
 ---
 
-## 👥 Team & Certification
+## 👥 Team & Submission
 
 | | |
 |:---|:---|
 | **Hackathon** | GNSS 4 for Space Applications in Africa (G4-SAA) — SATNAV Africa Joint Programme |
-| **Submission Track** | Challenge I — Drones for Emergency Applications / Disaster risk reduction and management |
+| **Submission Track** | **Challenge II — Synergizing Agriculture and Geomatics**; disaster risk reduction is addressed through flood, drought, and wildfire triggers |
 | **Built with** | Django, PostGIS, MapLibre, Esri Living Atlas, Solidity, OpenAI, Twilio |
 | **Team** | Jason (juangh123) — solo builder |
-| **Demo Video** | [AgriGuard_Demo.mp4](https://raw.githubusercontent.com/juangh123/agri_guard/main/docs/AgriGuard_Demo.mp4) |
-| **Presentation** | [`docs/AgriGuard_Presentation.pptx`](docs/AgriGuard_Presentation.pptx) |
-| **Certification** | N/A |
+| **Demo Video** | [`docs/AgriGuard_Demo_Final.mp4`](docs/AgriGuard_Demo_Final.mp4) — rebuilt against the current honest-settlement UI |
+| **Presentation** | [`docs/AgriGuard_Presentation_submission.pptx`](docs/AgriGuard_Presentation_submission.pptx) |
 | **Submission URL** | _Pending DoraHacks submission — update after the BUIDL is created_ |
 
 ---

@@ -1,0 +1,23 @@
+1
+00:00:05,500 --> 00:00:22,300
+Every year, climate disasters cost African agriculture about 9.3 billion dollars, yet most smallholder farmers remain uninsured because traditional verification is slow, expensive, and often too late.
+
+2
+00:00:23,850 --> 00:00:44,100
+AgriGuard stores each farm as a WGS84 polygon with optional receiver, accuracy, and capture-time metadata. PostGIS checks those boundaries against NASA EONET event footprints and clearly labeled demo hazards.
+
+3
+00:00:45,650 --> 00:01:02,700
+The live map combines Esri Living Atlas layers for VIIRS fire activity, GEOGLOWS streamflow, and stream gauges. Farmers and insurers see the same geospatial evidence.
+
+4
+00:01:04,250 --> 00:01:22,800
+When parametric thresholds are met, AgriGuard creates an auditable claim and timeline. The public demo has no Web3 credentials, so no funds move and no transaction hash is fabricated.
+
+5
+00:01:24,350 --> 00:01:38,700
+Reports separate pending pipeline value from completed settlements. SMS updates support seven languages and use Twilio when configured, with a labeled mock sender otherwise.
+
+6
+00:01:40,250 --> 00:01:55,000
+The target is to reduce routine verification cost and compress claim processing from weeks to minutes when verified feeds and insurer settlement are configured.

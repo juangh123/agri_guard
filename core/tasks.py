@@ -25,7 +25,12 @@ def send_sms_alert(phone_number, message):
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Attempting to send SMS to {phone_number}...")
     print(f"Message: {message}")
 
-    if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and settings.TWILIO_PHONE_NUMBER:
+    if (
+        settings.LIVE_SMS_ENABLED
+        and settings.TWILIO_ACCOUNT_SID
+        and settings.TWILIO_AUTH_TOKEN
+        and settings.TWILIO_PHONE_NUMBER
+    ):
         try:
             client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
             twilio_msg = client.messages.create(
@@ -68,8 +73,8 @@ def generate_ai_damage_report(alert_id):
     except RiskAlert.DoesNotExist:
         return
 
-    # Mock response if no API key is provided
-    if not settings.OPENAI_API_KEY:
+    # Mock response unless live AI is explicitly enabled and configured.
+    if not settings.LIVE_AI_ENABLED or not settings.OPENAI_API_KEY:
         mock_report = (
             f"🤖 [AI Simulation Mode] \n"
             f"Based on satellite data analysis for {event.get_event_type_display()} '{event.title}' "
@@ -93,7 +98,7 @@ def generate_ai_damage_report(alert_id):
         )
         
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=settings.OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": "You are a concise agricultural insurance AI."},
                 {"role": "user", "content": prompt}
@@ -129,6 +134,7 @@ def process_disaster_event(self, event_id, is_simulation=False):
         eo_data_current = event.eo_metrics.copy() if event.eo_metrics else {}
         
         if is_simulation:
+            eo_data_current['simulation'] = True
             # 仿真注入统一使用引擎侧 eo_metrics 键名：water_level_m / duration_days / fire_area_ha
             if event.event_type == 'WILDFIRE' and 'fire_area_ha' not in eo_data_current:
                 eo_data_current['fire_area_ha'] = 6.0
@@ -136,6 +142,11 @@ def process_disaster_event(self, event_id, is_simulation=False):
                 if 'water_level_m' not in eo_data_current: eo_data_current['water_level_m'] = 3.0
                 if 'duration_days' not in eo_data_current: eo_data_current['duration_days'] = 4
                 if 'rain_anomaly' not in eo_data_current: eo_data_current['rain_anomaly'] = True
+            if event.event_type == 'HEATWAVE':
+                if 'temperature_anomaly_c' not in eo_data_current:
+                    eo_data_current['temperature_anomaly_c'] = 3.1
+                if 'duration_days' not in eo_data_current:
+                    eo_data_current['duration_days'] = 4
         
         # 将仿真注入后的指标写回事件对象（仅内存，不落库），并按引擎签名传入 Farm/DisasterEvent 对象
         event.eo_metrics = eo_data_current
@@ -163,13 +174,11 @@ def process_disaster_event(self, event_id, is_simulation=False):
             alerts_created += 1
             
             payout_info = engine.process_payout(farm, event, trigger_results)
+            simulation_label = '[SIMULATED] ' if is_simulation else ''
             
             if payout_info.get("status") == "AUTO_APPROVED":
                 # 赔付金额统一使用引擎计算结果（calculate_payout），弃用 500*severity 硬编码
                 payout = payout_info.get("amount", 0.0)
-                if payout <= 0:
-                    # 兜底说明：引擎金额为 0 时按严重程度估算，保证演示路径仍有一个合理赔付额
-                    payout = 500.00 * event.severity_level
                 
                 tx_hash = None
                 payment_succeeded = False
@@ -195,14 +204,32 @@ def process_disaster_event(self, event_id, is_simulation=False):
                     paid_at=None
                 )
 
-                ClaimTimeline.objects.create(claim=claim, status='DETECTED', detail=f'{event.get_event_type_display()} detected inside geofence.')
-                ClaimTimeline.objects.create(claim=claim, status='VERIFIED', detail=f'GNSS cross-validation passed. Confidence {confidence_pct}%.')
-                ClaimTimeline.objects.create(claim=claim, status='TRIGGERED', detail=f'Confidence >= threshold. Smart contract triggered.')
-                ClaimTimeline.objects.create(claim=claim, status='NOTIFIED', detail='SMS sent to farmer.')
+                ClaimTimeline.objects.create(
+                    claim=claim,
+                    status='DETECTED',
+                    detail=f'{simulation_label}{event.get_event_type_display()} matched a GNSS farm boundary.',
+                )
+                if is_simulation:
+                    verified_detail = (
+                        'Simulated threshold metrics accepted for the demo; '
+                        f'confidence {confidence_pct}% is not claim-grade.'
+                    )
+                else:
+                    verified_detail = (
+                        'Hazard footprint intersects the GNSS boundary. '
+                        f'Confidence {confidence_pct}%.'
+                    )
+                ClaimTimeline.objects.create(
+                    claim=claim,
+                    status='VERIFIED',
+                    detail=verified_detail,
+                )
+                ClaimTimeline.objects.create(claim=claim, status='TRIGGERED', detail='Confidence threshold met. Settlement processing started.')
+                ClaimTimeline.objects.create(claim=claim, status='NOTIFIED', detail='Farmer notification dispatched or queued.')
 
                 payment_succeeded = False
                 tx_hash = None
-                if farm.wallet_address:
+                if farm.wallet_address and settings.LIVE_SETTLEMENT_ENABLED:
                     try:
                         blockchain = BlockchainService()
                         tx_hash = blockchain.execute_payout(
@@ -226,16 +253,16 @@ def process_disaster_event(self, event_id, is_simulation=False):
 
                 if payment_succeeded:
                     ClaimTimeline.objects.create(claim=claim, status='PAID', detail=f'Payout of ${payout} completed. TxHash: {tx_hash}')
-                    message = f"URGENT: {trigger_results['disaster_type']} alert for '{farm.name}'. Claim #{claim.claim_no} generated. Payout: ${payout} USDC. TxHash: {tx_hash[:10]}..."
+                    message = f"{simulation_label}URGENT: {trigger_results['disaster_type']} alert for '{farm.name}'. Claim #{claim.claim_no} generated. Payout: ${payout} USDC. TxHash: {tx_hash[:10]}..."
                 else:
-                    ClaimTimeline.objects.create(claim=claim, status='PENDING', detail=f'Payout of ${payout} simulated (Web3 not configured or transfer failed). No real funds moved.')
-                    message = f"URGENT: {trigger_results['disaster_type']} alert for '{farm.name}'. Claim #{claim.claim_no} generated. Payout: ${payout} USDC (simulated, pending real settlement)."
+                    ClaimTimeline.objects.create(claim=claim, status='PENDING', detail=f'Payout of ${payout} remains PENDING (Web3 not configured or transfer failed). No real funds moved.')
+                    message = f"{simulation_label}URGENT: {trigger_results['disaster_type']} alert for '{farm.name}'. Claim #{claim.claim_no} generated. Payout: ${payout} USDC (simulated, pending real settlement)."
                 send_sms_alert.delay(farm.phone_number, message)
                 
             else:
                 alert.status = 'WARNING'
                 alert.save()
-                message = f"WARNING: {trigger_results['disaster_type']} conditions detected near '{farm.name}'. Monitor closely."
+                message = f"{simulation_label}WARNING: {trigger_results['disaster_type']} conditions detected near '{farm.name}'. Monitor closely."
                 send_sms_alert.delay(farm.phone_number, message)
             
             # Send WebSocket notification to frontend.

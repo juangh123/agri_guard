@@ -1,10 +1,10 @@
 # AgriGuard — GNSS Data Capture and Evidence
 
-AgriGuard is designed around **Galileo GNSS** geo-fencing. This page describes how GNSS data enters the system and how it is protected for downstream insurance decisions.
+AgriGuard is designed around GNSS/WGS84 geo-fencing. This page describes how GNSS data enters the system and how it is protected for downstream insurance decisions.
 
 ## 1. Intended Field Capture Flow
 
-1. A farmer, extension officer, or field device walks or rides the plot boundary while collecting GNSS positions.
+1. A farmer, extension officer, or field device walks or rides the plot boundary while collecting GNSS positions. Galileo-capable receivers are supported at the data level because the workflow is standard WGS84.
 2. The client converts the ordered positions into a WGS84 polygon (`SRID 4326`).
 3. The polygon is submitted with metadata:
    - Capture timestamp.
@@ -33,7 +33,7 @@ Reference: `core/models.py`, `core/views.py`, `core/tasks.py`.
 ## 4. Production Roadmap
 
 - Ingest NMEA/RINEX traces or mobile GNSS fixes and auto-populate the GNSS metadata fields.
-- Include the GNSS fields in on-chain policy metadata, not only the evidence hash.
+- Include the GNSS fields in the reference escrow contract's policy metadata, not only the evidence hash.
 - Add a tamper-evident upload route for raw traces and boundary snapshots.
 
 ---

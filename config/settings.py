@@ -58,8 +58,23 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# 允许所有源访问（仅限本地开发测试使用，生产环境切勿如此配置）
-CORS_ALLOW_ALL_ORIGINS = True
+# Local demos stay frictionless. Production deployments must list their frontend
+# origins explicitly so a public API is not accidentally open to every website.
+CORS_ALLOW_ALL_ORIGINS = DEBUG
+CORS_ALLOWED_ORIGINS = env.list(
+    'CORS_ALLOWED_ORIGINS',
+    default=[
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+    ],
+)
+CORS_ALLOWED_ORIGIN_REGEXES = env.list(
+    'CORS_ALLOWED_ORIGIN_REGEXES',
+    default=[
+        r'^https://.*\.vercel\.app$',
+        r'^https://.*\.onrender\.com$',
+    ],
+)
 
 ROOT_URLCONF = 'config.urls'
 
@@ -67,8 +82,12 @@ ASGI_APPLICATION = 'config.asgi.application'
 
 CHANNEL_LAYER_BACKEND = env('CHANNEL_LAYER_BACKEND', default='')
 REDIS_URL = env('CELERY_BROKER_URL', default='')
+USING_IN_MEMORY_CHANNEL_LAYER = (
+    CHANNEL_LAYER_BACKEND == 'memory'
+    or (not CHANNEL_LAYER_BACKEND and not REDIS_URL)
+)
 
-if CHANNEL_LAYER_BACKEND == 'memory' or (not CHANNEL_LAYER_BACKEND and not REDIS_URL):
+if USING_IN_MEMORY_CHANNEL_LAYER:
     CHANNEL_LAYERS = {
         'default': {
             'BACKEND': 'channels.layers.InMemoryChannelLayer',
@@ -83,6 +102,13 @@ else:
             },
         },
     }
+
+# A database poll keeps WebSocket clients current when multiple server instances
+# each have their own in-memory channel layer.
+ALERT_DB_POLL_INTERVAL = env.float(
+    'ALERT_DB_POLL_INTERVAL',
+    default=3.0 if USING_IN_MEMORY_CHANNEL_LAYER else 0.0,
+)
 
 TEMPLATES = [
     {
@@ -117,6 +143,17 @@ DATABASES = {
 # Docker's PostGIS image provides these libraries on the system path.
 GDAL_LIBRARY_PATH = env('GDAL_LIBRARY_PATH', default=None)
 GEOS_LIBRARY_PATH = env('GEOS_LIBRARY_PATH', default=None)
+
+# The Windows wheel ships its own PROJ/GDAL data. Export those paths before the
+# first geometry transform so management commands and tests do not diverge.
+try:
+    import osgeo
+
+    osgeo_dir = Path(osgeo.__file__).resolve().parent
+    os.environ.setdefault('PROJ_LIB', str(osgeo_dir / 'data' / 'proj'))
+    os.environ.setdefault('GDAL_DATA', str(osgeo_dir / 'data' / 'gdal'))
+except ImportError:
+    pass
 
 
 # Password validation
@@ -174,9 +211,13 @@ CELERY_TIMEZONE = TIME_ZONE
 TWILIO_ACCOUNT_SID = env('TWILIO_ACCOUNT_SID', default='')
 TWILIO_AUTH_TOKEN = env('TWILIO_AUTH_TOKEN', default='')
 TWILIO_PHONE_NUMBER = env('TWILIO_PHONE_NUMBER', default='')
+LIVE_SMS_ENABLED = env.bool('LIVE_SMS_ENABLED', default=False)
 
 # OpenAI / AI Configuration for Damage Estimation
 OPENAI_API_KEY = env('OPENAI_API_KEY', default='')
+OPENAI_MODEL = env('OPENAI_MODEL', default='gpt-4o-mini')
+LIVE_AI_ENABLED = env.bool('LIVE_AI_ENABLED', default=False)
+LIVE_SETTLEMENT_ENABLED = env.bool('LIVE_SETTLEMENT_ENABLED', default=False)
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -203,3 +244,18 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:5173',
 ]
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Production defaults are secure-by-default behind Vercel/Render's HTTPS proxy.
+# Local DEBUG runs keep redirects, secure cookies, and HSTS disabled.
+SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=not DEBUG)
+SESSION_COOKIE_SECURE = env.bool('SESSION_COOKIE_SECURE', default=not DEBUG)
+CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE', default=not DEBUG)
+SECURE_HSTS_SECONDS = env.int(
+    'SECURE_HSTS_SECONDS',
+    default=31536000 if not DEBUG else 0,
+)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool(
+    'SECURE_HSTS_INCLUDE_SUBDOMAINS',
+    default=False,
+)
+SECURE_HSTS_PRELOAD = env.bool('SECURE_HSTS_PRELOAD', default=False)
