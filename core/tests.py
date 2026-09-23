@@ -35,8 +35,9 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from . import consumers
+from .management.commands import seed_demo_data
 from .engine import ParametricClaimEngine
-from .models import Claim, DisasterEvent, Farm, RiskAlert
+from .models import Claim, ClaimTimeline, DisasterEvent, Farm, RiskAlert
 from .services.blockchain_service import BlockchainConfigError, BlockchainService
 from .services.llm_service import ask_agri_guard_ai
 from .tasks import process_disaster_event, send_sms_alert
@@ -243,6 +244,50 @@ class SeedDemoDataSecurityTests(TestCase):
 
         self.assertFalse(demo_user.is_staff)
         self.assertFalse(demo_user.is_superuser)
+
+
+class SeedDemoDataContentTests(TestCase):
+    """A fresh deployment must show the dashboard documented in docs/screenshots."""
+
+    def setUp(self):
+        call_command('seed_demo_data', verbosity=0)
+
+    def test_seeds_the_documented_demo_history(self):
+        self.assertEqual(Farm.objects.count(), 3)
+        self.assertEqual(DisasterEvent.objects.count(), 4)
+        self.assertEqual(Claim.objects.count(), 9)
+        self.assertEqual(ClaimTimeline.objects.count(), 36)
+
+        pipeline = sum(
+            (amount or Decimal('0')) for amount in Claim.objects.values_list('payout_amount', flat=True)
+        )
+        self.assertEqual(pipeline, Decimal('3490.00'))
+        self.assertFalse(Claim.objects.exclude(status='PENDING').exists())
+        self.assertFalse(Claim.objects.filter(tx_hash__isnull=False).exists())
+
+    def test_only_three_hazards_count_as_active(self):
+        active = RiskAlert.objects.filter(status__in=['DISASTER', 'WARNING'])
+        self.assertEqual(active.count(), 3)
+        self.assertEqual(
+            len({f'{alert.farm.name}:{alert.event.event_type}' for alert in active}),
+            3,
+        )
+
+    def test_seeding_does_not_run_the_live_analysis_pipeline(self):
+        # The post_save hook mints extra claims with random numbers; the seed must
+        # stay deterministic so the documented claim numbers remain the only ones.
+        self.assertEqual(
+            set(Claim.objects.values_list('claim_no', flat=True)),
+            {row[0] for row in seed_demo_data.DEMO_CLAIMS},
+        )
+        self.assertEqual(Claim.objects.values('alert_id').distinct().count(), 9)
+
+    def test_seeding_is_idempotent(self):
+        call_command('seed_demo_data', verbosity=0)
+        self.assertEqual(Farm.objects.count(), 3)
+        self.assertEqual(DisasterEvent.objects.count(), 4)
+        self.assertEqual(Claim.objects.count(), 9)
+        self.assertEqual(ClaimTimeline.objects.count(), 36)
 
 
 class FarmApiPermissionTests(TestCase):
