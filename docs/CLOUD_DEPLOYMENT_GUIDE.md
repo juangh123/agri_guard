@@ -41,8 +41,10 @@ again. On start it:
 
 1. Logs whether `DATABASE_URL` points at PostgreSQL or at the ephemeral
    fallback.
-2. Runs `manage.py migrate` up to `DB_CONNECT_RETRIES` times (default `5`, with
-   `DB_CONNECT_DELAY` seconds between attempts, default `3`).
+2. Runs `manage.py migrate` up to `DB_CONNECT_RETRIES` times (default `1`, with
+   `DB_CONNECT_DELAY` seconds between attempts, default `2`). Each attempt is
+   capped by `DB_ATTEMPT_TIMEOUT` (default `12`s) and the whole retry phase by
+   `DB_MIGRATION_BUDGET` (default `15`s).
 3. If every attempt fails and `ALLOW_EPHEMERAL_FALLBACK` is `1` (the default),
    prints a banner, repoints Django at
    `spatialite:////tmp/agri_guard.sqlite3`, and still starts Daphne. Set
@@ -50,7 +52,10 @@ again. On start it:
 4. Exports `AGRIGUARD_PERSISTENCE_MODE` so the running container can report
    which mode it ended up in.
 
-Set `DB_CONNECT_RETRIES=0` in the container environment to skip retries.
+The defaults are deliberately impatient: Vercel kills a container that has not
+opened its port within roughly 28 seconds, and an earlier five-attempt retry
+loop spent that entire window on a dead database, so the fallback never ran.
+Raise the retry values only for hosts with a longer startup grace period.
 
 ### Health endpoint
 
