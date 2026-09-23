@@ -9,6 +9,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.gis.geos import GEOSGeometry, Polygon
+from django.db import connection
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
@@ -416,3 +417,70 @@ def chat_assistant(request):
         import traceback
         traceback.print_exc()
         return Response({"error": "AI assistant is temporarily unavailable. Please try again later."}, status=503)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health(request):
+    """
+    Unauthenticated deployment probe.
+
+    The public demo has twice failed in ways that looked like "empty data" from
+    the browser: a vanished database and a container that exited before Daphne
+    started. Both produced a UI full of zeros with no explanation, so this
+    endpoint reports reachability, engine, persistence mode and row counts, and
+    answers 503 while the database is unusable.
+    """
+    engine = connection.settings_dict.get('ENGINE', '')
+    persistence_mode = os.getenv('AGRIGUARD_PERSISTENCE_MODE', '').strip().lower()
+    if persistence_mode not in {'persistent', 'ephemeral'}:
+        # Older containers did not export the mode; infer it from the engine.
+        persistence_mode = 'ephemeral' if 'sqlite' in engine else 'persistent'
+
+    payload = {
+        'status': 'ok',
+        'persistence_mode': persistence_mode,
+        'database': {
+            'engine': engine.rsplit('.', 1)[-1] or 'unknown',
+            'reachable': False,
+            'error': None,
+        },
+        'migrations': {'applied': None, 'latest': None},
+        'data': {'farms': None, 'claims': None, 'alerts': None},
+        'environment': os.getenv('VERCEL_ENV') or ('production' if not settings.DEBUG else 'local'),
+        'release': (os.getenv('VERCEL_GIT_COMMIT_SHA') or '')[:7] or None,
+        'time': timezone.now().isoformat(),
+    }
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT 1')
+        payload['database']['reachable'] = True
+    except Exception as exc:  # noqa: BLE001 - surfaced verbatim to operators
+        payload['status'] = 'degraded'
+        payload['database']['error'] = str(exc).strip()[:500]
+        return Response(payload, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT app, name FROM django_migrations ORDER BY applied DESC, id DESC LIMIT 1')
+            latest = cursor.fetchone()
+            cursor.execute('SELECT COUNT(*) FROM django_migrations')
+            payload['migrations'] = {
+                'applied': cursor.fetchone()[0],
+                'latest': f'{latest[0]}.{latest[1]}' if latest else None,
+            }
+    except Exception as exc:  # noqa: BLE001 - migrations may not exist yet
+        payload['migrations']['error'] = str(exc).strip()[:200]
+
+    try:
+        payload['data'] = {
+            'farms': Farm.objects.count(),
+            'claims': Claim.objects.count(),
+            'alerts': RiskAlert.objects.count(),
+        }
+    except Exception as exc:  # noqa: BLE001 - tables may not exist yet
+        payload['data']['error'] = str(exc).strip()[:200]
+        payload['status'] = 'degraded'
+
+    return Response(payload)

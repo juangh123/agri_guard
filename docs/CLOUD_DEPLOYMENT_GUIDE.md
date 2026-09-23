@@ -34,6 +34,77 @@ the included six-hour Celery Beat schedule in the Docker stack or triggered
 manually; it is not claimed to run automatically inside the Vercel judge
 container.
 
+### Container startup behaviour
+
+`entrypoint.vercel.sh` never lets a database outage take the whole demo down
+again. On start it:
+
+1. Logs whether `DATABASE_URL` points at PostgreSQL or at the ephemeral
+   fallback.
+2. Runs `manage.py migrate` up to `DB_CONNECT_RETRIES` times (default `5`, with
+   `DB_CONNECT_DELAY` seconds between attempts, default `3`).
+3. If every attempt fails and `ALLOW_EPHEMERAL_FALLBACK` is `1` (the default),
+   prints a banner, repoints Django at
+   `spatialite:////tmp/agri_guard.sqlite3`, and still starts Daphne. Set
+   `ALLOW_EPHEMERAL_FALLBACK=0` to refuse to start instead.
+4. Exports `AGRIGUARD_PERSISTENCE_MODE` so the running container can report
+   which mode it ended up in.
+
+Set `DB_CONNECT_RETRIES=0` in the container environment to skip retries.
+
+### Health endpoint
+
+`GET /api/health/` is public and returns `200` while the database answers, or
+`503` with a diagnostic body when it does not:
+
+```json
+{
+  "status": "ok",
+  "persistence_mode": "persistent",
+  "database": { "engine": "postgis", "reachable": true, "error": null },
+  "migrations": { "applied": 25, "latest": "core.0007_alter_claimtimeline_options" },
+  "data": { "farms": 4, "claims": 9, "alerts": 9 },
+  "environment": "production",
+  "release": "8a5eb64",
+  "time": "2026-09-23T14:30:24+00:00"
+}
+```
+
+Use it as the deployment probe. `persistence_mode: "ephemeral"` means the demo
+is running on throwaway data, and the dashboard shows the matching warning
+banner so reviewers are not misled by an empty database. The frontend also
+renders an explicit banner when the API is unreachable and no cached snapshot
+exists, instead of silently displaying zeroes.
+
+### Restoring a vanished database
+
+Supabase projects can be deleted or recycled; when that happens the pooler
+answers `FATAL: (ENOTFOUND) tenant/user postgres.<project-ref> not found` and the
+project domain stops resolving. To restore persistence:
+
+1. Create or restore the Supabase project and enable PostGIS:
+
+   ```sql
+   create extension if not exists postgis with schema extensions;
+   ```
+
+2. Update the production variable:
+
+   ```bash
+   vercel env rm DATABASE_URL production
+   vercel env add DATABASE_URL production   # paste the new session-pooler URL
+   ```
+
+3. Redeploy, then confirm `/api/health/` reports `persistence_mode: "persistent"`
+   with the expected row counts, and re-run `seed_demo_data` if the new project
+   is empty:
+
+   ```bash
+   vercel env pull .env.production.local
+   python manage.py migrate
+   python manage.py seed_demo_data
+   ```
+
 ## Recommended Architecture
 
 | Component | Service |
@@ -48,6 +119,11 @@ container.
 > differ between requests or disappear after a cold start. The deployment is
 > suitable for UI and authentication checks only until `DATABASE_URL` points to
 > an external PostgreSQL/PostGIS database.
+>
+> The container now falls back to that file automatically instead of exiting, so
+> a broken database degrades the demo rather than blacking it out. The fallback
+> is always labelled: the container logs a banner, `/api/health/` reports
+> `persistence_mode: "ephemeral"`, and the dashboard shows a warning strip.
 
 ### Supabase setup
 

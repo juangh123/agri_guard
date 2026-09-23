@@ -15,6 +15,7 @@ import {
   X,
   Home,
   WifiOff,
+  Database,
 } from "lucide-react";
 import axios from "axios";
 import toast from "react-hot-toast";
@@ -88,8 +89,13 @@ export default function Dashboard() {
     } catch { return null; }
   });
   const [usingCachedData, setUsingCachedData] = useState(false);
+  // Deployment health: distinguishes "no data yet" from "the backend cannot
+  // serve data", so reviewers never read an empty dashboard as real figures.
+  const [systemStatus, setSystemStatus] = useState(null);
+  const [dataUnavailable, setDataUnavailable] = useState(false);
 
   const isFarmer = userRole === "farmer";
+  const ephemeralDb = systemStatus?.persistence_mode === "ephemeral";
 
   // Track connectivity; refetch fresh data when the connection comes back
   useEffect(() => {
@@ -167,16 +173,26 @@ export default function Dashboard() {
     // last synced snapshot instead of silently showing empty dashboards.
     let failures = 0;
     const track = (p) => p.catch(() => { failures += 1; return { data: [] }; });
+    // Health is diagnostic only: it must never count as a data failure, and it
+    // answers 503 with a body when the API is up but the database is not.
+    const healthProbe = axios
+      .get(`${API_BASE_URL}/health/`)
+      .then((res) => res.data)
+      .catch((err) => err?.response?.data || { status: "unreachable" });
     try {
-      const [farmsRes, claimsRes, alertsRes] = await Promise.all([
+      const [farmsRes, claimsRes, alertsRes, health] = await Promise.all([
         track(axios.get(`${API_BASE_URL}/farms/`)),
         track(axios.get(`${API_BASE_URL}/claims/`)),
         track(axios.get(`${API_BASE_URL}/alerts/`)),
+        healthProbe,
       ]);
 
       if (failures === 3) {
         throw new Error("network unreachable");
       }
+
+      setSystemStatus(health);
+      setDataUnavailable(false);
 
       const rawFarms = Array.isArray(farmsRes.data)
         ? farmsRes.data
@@ -202,6 +218,7 @@ export default function Dashboard() {
       } catch { /* storage full/blocked — non-fatal */ }
     } catch (err) {
       console.error("Failed to load initial data", err);
+      setSystemStatus(await healthProbe);
       // Offline fallback: restore the last synced snapshot
       try {
         const snap = JSON.parse(localStorage.getItem("agri_guard_cache") || "null");
@@ -211,11 +228,14 @@ export default function Dashboard() {
           setAlerts(snap.alerts || []);
           setLastSyncedAt(snap.ts || null);
           setUsingCachedData(true);
+          setDataUnavailable(false);
           if (snap.claims?.length > 0 && !selectedClaimNo) {
             setSelectedClaimNo(snap.claims[0].claim_no);
           }
+        } else {
+          setDataUnavailable(true);
         }
-      } catch { /* no snapshot available */ }
+      } catch { setDataUnavailable(true); /* no snapshot available */ }
     }
   }, [selectedClaimNo]);
 
@@ -472,6 +492,28 @@ export default function Dashboard() {
               {t("offline_synced_at", { time: new Date(lastSyncedAt).toLocaleString() })}
             </span>
           )}
+        </div>
+      )}
+
+      {/* The API answered but could not read its database */}
+      {dataUnavailable && !usingCachedData && (
+        <div className="bg-destructive/10 border-b border-destructive/30 px-4 py-2 flex items-center justify-center gap-2 text-xs font-bold text-destructive">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>{t("live_data_unavailable")}</span>
+          {systemStatus?.database?.error && (
+            <span className="font-mono font-semibold opacity-80 truncate max-w-[24rem]">
+              {systemStatus.database.error}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Database fell back to the throwaway /tmp store: the numbers on screen
+          are real but will not survive a restart or a second instance. */}
+      {ephemeralDb && (
+        <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 flex items-center justify-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-400">
+          <Database className="h-4 w-4 shrink-0" />
+          <span>{t("ephemeral_db_banner")}</span>
         </div>
       )}
 
