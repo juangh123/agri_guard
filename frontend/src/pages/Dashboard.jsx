@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Shield,
@@ -16,10 +16,10 @@ import {
   Home,
   WifiOff,
   Database,
+  Loader2,
 } from "lucide-react";
 import axios from "axios";
 import toast from "react-hot-toast";
-import MapView from "../components/MapView";
 import ClaimTimeline from "../components/ClaimTimeline";
 import DashboardOverview from "../components/DashboardOverview";
 import FarmerHome from "../components/FarmerHome";
@@ -32,6 +32,10 @@ import { useAlertsSocket } from "../hooks/useAlertsSocket";
 import { ensureDemoSession } from "../utils/auth";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
+
+// MapLibre is by far the heaviest dependency and only the Live Map tab needs it,
+// so keep it out of the first paint and the other five tabs.
+const MapView = lazy(() => import("../components/MapView"));
 
 const NAV_ITEMS = [
   { id: "overview", labelKey: "nav_overview", icon: Activity, farmerLabelKey: "nav_home", farmerIcon: Home },
@@ -565,13 +569,22 @@ export default function Dashboard() {
           )}
 
           {activeTab === "map" && (
-            <MapView
-              isDisasterActive={isDisasterActive}
-              onSimulateDisaster={isFarmer ? undefined : handleSimulateDisaster}
-              isSimulating={isSimulating}
-              farms={farms}
-              alerts={alerts}
-            />
+            <Suspense
+              fallback={
+                <div className="flex-1 flex items-center justify-center min-h-[320px] text-sm font-semibold text-muted-foreground">
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" aria-hidden="true" />
+                  {t("map_loading")}
+                </div>
+              }
+            >
+              <MapView
+                isDisasterActive={isDisasterActive}
+                onSimulateDisaster={isFarmer ? undefined : handleSimulateDisaster}
+                isSimulating={isSimulating}
+                farms={farms}
+                alerts={alerts}
+              />
+            </Suspense>
           )}
 
           {activeTab === "timeline" && (
