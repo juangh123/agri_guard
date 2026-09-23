@@ -51,11 +51,26 @@ again. On start it:
    `ALLOW_EPHEMERAL_FALLBACK=0` to refuse to start instead.
 4. Exports `AGRIGUARD_PERSISTENCE_MODE` so the running container can report
    which mode it ended up in.
+5. Emits one machine-readable `agri_guard_startup` JSON line with the
+   persistence mode, degradation flag, database scheme, Vercel environment, and
+   release. Log-based alerting can match that stable field instead of scraping
+   the surrounding prose:
+
+   ```json
+   {"event":"agri_guard_startup","persistence_mode":"ephemeral","degraded":true,"database_scheme":"spatialite","environment":"production","release":"680dfa3"}
+   ```
 
 The defaults are deliberately impatient: Vercel kills a container that has not
 opened its port within roughly 28 seconds, and an earlier five-attempt retry
 loop spent that entire window on a dead database, so the fallback never ran.
 Raise the retry values only for hosts with a longer startup grace period.
+
+Set the optional `ALERT_WEBHOOK_URL` variable to receive an
+`agri_guard_database_fallback` JSON notification if the container falls back.
+The payload includes both `text` (Slack-compatible) and `content`
+(Discord-compatible) fields. `ALERT_WEBHOOK_TIMEOUT` defaults to `2` seconds so
+alert delivery cannot consume the cold-start window; a failed webhook call is
+logged but never prevents Daphne from starting.
 
 ### Health endpoint
 

@@ -13,10 +13,13 @@ DB_CONNECT_DELAY="${DB_CONNECT_DELAY:-2}"
 DB_MIGRATION_BUDGET="${DB_MIGRATION_BUDGET:-15}"
 DB_ATTEMPT_TIMEOUT="${DB_ATTEMPT_TIMEOUT:-12}"
 ALLOW_EPHEMERAL_FALLBACK="${ALLOW_EPHEMERAL_FALLBACK:-1}"
+ALERT_WEBHOOK_TIMEOUT="${ALERT_WEBHOOK_TIMEOUT:-2}"
+DEGRADED_REASON=""
 
 if [ -z "${DATABASE_URL:-}" ]; then
   export DATABASE_URL="spatialite:////tmp/agri_guard.sqlite3"
   PERSISTENCE_MODE="ephemeral"
+  DEGRADED_REASON="DATABASE_URL is not configured; serving the demo from /tmp/agri_guard.sqlite3"
   echo "=== DATABASE_URL not configured; using ephemeral demo database ==="
 else
   PERSISTENCE_MODE="persistent"
@@ -41,6 +44,63 @@ run_migrations() {
     python manage.py migrate --noinput
   fi
 }
+
+# One JSON line per start, so log-based alerting can match on a stable shape
+# instead of grepping prose.
+emit_startup_event() {
+  python - <<'PY' || true
+import json
+import os
+
+mode = os.environ.get('AGRIGUARD_PERSISTENCE_MODE', 'unknown')
+print(json.dumps({
+    'event': 'agri_guard_startup',
+    'persistence_mode': mode,
+    'degraded': mode == 'ephemeral',
+    'database_scheme': os.environ.get('DATABASE_URL', '').split(':', 1)[0],
+    'environment': os.environ.get('VERCEL_ENV', 'local'),
+    'release': os.environ.get('VERCEL_GIT_COMMIT_SHA', '')[:7],
+}))
+PY
+}
+
+# Optional outbound notice when the container had to fall back. Configure
+# ALERT_WEBHOOK_URL (Slack, Discord, or any JSON endpoint) to be told about it
+# instead of finding out from a dashboard full of zeroes.
+notify_degraded() {
+  [ -n "${ALERT_WEBHOOK_URL:-}" ] || return 0
+  ALERT_DETAIL="$1" ALERT_WEBHOOK_TIMEOUT="${ALERT_WEBHOOK_TIMEOUT}" python - <<'PY' || true
+import json
+import os
+import urllib.request
+
+detail = os.environ.get('ALERT_DETAIL', '')
+message = f"AgriGuard demo database fallback: {detail}"
+payload = {
+    'text': message,
+    'content': message,
+    'event': 'agri_guard_database_fallback',
+    'detail': detail,
+    'environment': os.environ.get('VERCEL_ENV', 'unknown'),
+    'release': os.environ.get('VERCEL_GIT_COMMIT_SHA', '')[:7],
+}
+request = urllib.request.Request(
+    os.environ['ALERT_WEBHOOK_URL'],
+    data=json.dumps(payload).encode('utf-8'),
+    headers={'Content-Type': 'application/json'},
+)
+try:
+    timeout = float(os.environ.get('ALERT_WEBHOOK_TIMEOUT', '2'))
+    urllib.request.urlopen(request, timeout=timeout).read()
+    print('=== Degradation notice delivered ===')
+except Exception as exc:  # noqa: BLE001 - never block startup on alerting
+    print(f'!!! Degradation notice failed: {exc}')
+PY
+}
+
+if [ -n "${DEGRADED_REASON}" ]; then
+  notify_degraded "${DEGRADED_REASON}"
+fi
 
 migrated=0
 attempt=1
@@ -73,6 +133,9 @@ if [ "${migrated}" -ne 1 ]; then
     echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
     export DATABASE_URL="spatialite:////tmp/agri_guard.sqlite3"
     PERSISTENCE_MODE="ephemeral"
+    # Notify before migrating the fallback, so the alert still fires when the
+    # fallback itself is broken.
+    notify_degraded "DATABASE_URL was unreachable after ${elapsed}s; serving the demo from /tmp/agri_guard.sqlite3"
     run_migrations ""
   else
     echo "!!! Database unreachable (attempts=${DB_CONNECT_RETRIES}, elapsed=${elapsed}s)."
@@ -85,6 +148,8 @@ fi
 # Daphne inherits this, and /api/health/ reports it so the UI can warn reviewers
 # when they are looking at throwaway data.
 export AGRIGUARD_PERSISTENCE_MODE="${PERSISTENCE_MODE}"
+
+emit_startup_event
 
 echo "=== Seeding demo data ==="
 python manage.py seed_demo_data
