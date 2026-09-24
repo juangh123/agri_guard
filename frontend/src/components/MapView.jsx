@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import "maplibre-gl/dist/maplibre-gl.css";
 import MapGL, { NavigationControl, Source, Layer } from "react-map-gl/maplibre";
 import {
   MapPin,
