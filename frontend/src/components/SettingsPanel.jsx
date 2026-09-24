@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import axios from 'axios';
+import { useTranslation } from '../i18n/config';
 import toast from 'react-hot-toast';
 import {
   AlertTriangle,
@@ -16,8 +15,7 @@ import {
 } from 'lucide-react';
 
 import { ensureDemoSession } from '../utils/auth';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+import { api } from '../utils/api';
 
 function StatusBadge({ mode, liveLabel, mockLabel }) {
   if (mode === 'live') {
@@ -70,7 +68,7 @@ export default function SettingsPanel({ farms = [], onSaved }) {
     setLoadError(false);
     try {
       await ensureDemoSession();
-      const response = await axios.get(`${API_BASE_URL}/farms/integration_status/`);
+      const response = await api.get('/farms/integration_status/');
       setIntegrationStatus(response.data);
       const firstFarm = response.data?.farms?.[0];
       const currentSelectionStillExists = response.data?.farms?.some(
@@ -106,7 +104,7 @@ export default function SettingsPanel({ farms = [], onSaved }) {
     }
     setSaving(true);
     try {
-      await axios.patch(`${API_BASE_URL}/farms/${selectedFarm.id}/`, {
+      await api.patch(`/farms/${selectedFarm.id}/`, {
         phone_number: phoneNumber,
         wallet_address: walletAddress,
       });
@@ -143,7 +141,7 @@ export default function SettingsPanel({ farms = [], onSaved }) {
     setTesting('sms');
     setTestResult(null);
     try {
-      const response = await axios.post(`${API_BASE_URL}/farms/${selectedFarm.id}/test_sms/`, {
+      const response = await api.post(`/farms/${selectedFarm.id}/test_sms/`, {
         phone_number: phoneNumber,
       });
       setTestResult(response.data);
@@ -166,7 +164,7 @@ export default function SettingsPanel({ farms = [], onSaved }) {
     setTesting('wallet');
     setTestResult(null);
     try {
-      const response = await axios.post(`${API_BASE_URL}/farms/${selectedFarm.id}/test_wallet/`, {
+      const response = await api.post(`/farms/${selectedFarm.id}/test_wallet/`, {
         wallet_address: walletAddress,
       });
       setTestResult(response.data);

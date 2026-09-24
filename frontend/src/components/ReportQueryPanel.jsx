@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "../i18n/config";
 import React, { useEffect, useMemo, useState } from "react";
 import { FileText, Filter, RefreshCw, FileSpreadsheet, Printer } from "lucide-react";
 

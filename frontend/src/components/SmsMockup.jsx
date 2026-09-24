@@ -1,4 +1,4 @@
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../i18n/config';
 import React, { useState, useEffect } from 'react';
 import { MessageSquare, X, Send } from 'lucide-react';
 

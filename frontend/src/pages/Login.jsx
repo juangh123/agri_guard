@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import axios from 'axios';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from '../utils/router';
+import { Link } from '../utils/router.jsx';
 import toast from 'react-hot-toast';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../i18n/config';
 import { Shield, User, Lock, ArrowRight } from 'lucide-react';
 import LanguageSwitcher from '../components/LanguageSwitcher';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+import { api } from '../utils/api';
 
 const Login = () => {
   const { t } = useTranslation();
@@ -20,10 +19,10 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const res = await axios.post(`${API_BASE_URL}/token/`, {
+      const res = await api.post('/token/', {
         username,
         password
-      });
+      }, { auth: false });
 
       localStorage.setItem('access_token', res.data.access);
       localStorage.setItem('refresh_token', res.data.refresh);

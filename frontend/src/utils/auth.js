@@ -1,5 +1,3 @@
-import axios from "axios";
-
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
 
 // Judges should never hit a login wall: the demo account is provisioned by
@@ -20,13 +18,23 @@ export function ensureDemoSession() {
   }
 
   if (!inFlightLogin) {
-    inFlightLogin = axios
-      .post(`${API_BASE_URL}/token/`, DEMO_CREDENTIALS)
-      .then((res) => {
-        localStorage.setItem("access_token", res.data.access);
-        localStorage.setItem("refresh_token", res.data.refresh);
+    inFlightLogin = fetch(`${API_BASE_URL}/token/`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(DEMO_CREDENTIALS),
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          return null;
+        }
+        const data = await response.json();
+        localStorage.setItem("access_token", data.access);
+        localStorage.setItem("refresh_token", data.refresh);
         localStorage.setItem("userName", DEMO_CREDENTIALS.username);
-        return res.data.access;
+        return data.access;
       })
       .catch(() => null)
       .finally(() => {

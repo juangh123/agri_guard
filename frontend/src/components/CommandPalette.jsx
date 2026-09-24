@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
+import { useTranslation, SUPPORTED_LANGUAGES, changeLanguage } from "../i18n/config";
 import {
   Search,
   SlidersHorizontal,
@@ -16,8 +16,6 @@ import {
   ArrowRight,
   Globe
 } from "lucide-react";
-import { SUPPORTED_LANGUAGES, changeLanguage } from "../i18n/config";
-
 export function CommandPalette({ isOpen, onClose, onNavigate, onRoleChange, onThemeChange }) {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");

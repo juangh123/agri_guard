@@ -1,6 +1,6 @@
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "../i18n/config";
 import React, { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "../utils/router";
 import {
   Shield,
   Activity,
@@ -18,14 +18,12 @@ import {
   Database,
   Loader2,
 } from "lucide-react";
-import axios from "axios";
 import toast from "react-hot-toast";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { CommandPalette } from "../components/CommandPalette";
 import { useAlertsSocket } from "../hooks/useAlertsSocket";
 import { ensureDemoSession } from "../utils/auth";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
+import { api } from "../utils/api";
 
 // Only one workspace panel is visible at a time. Keep charting, reporting,
 // settings, and MapLibre out of the dashboard shell until their tab is opened.
@@ -173,21 +171,25 @@ export default function Dashboard() {
   }, [activeTab, isFarmer, searchParams, setSearchParams]);
 
   const fetchInitialData = useCallback(async () => {
+    // App and Dashboard share one silent-login promise. Waiting here avoids
+    // four unauthenticated 401s followed by four identical retries on cold load.
+    await ensureDemoSession();
+
     // Track per-endpoint failures so a fully-offline session falls back to the
     // last synced snapshot instead of silently showing empty dashboards.
     let failures = 0;
     const track = (p) => p.catch(() => { failures += 1; return { data: [] }; });
     // Health is diagnostic only: it must never count as a data failure, and it
     // answers 503 with a body when the API is up but the database is not.
-    const healthProbe = axios
-      .get(`${API_BASE_URL}/health/`)
+    const healthProbe = api
+      .get('/health/')
       .then((res) => res.data)
       .catch((err) => err?.response?.data || { status: "unreachable" });
     try {
       const [farmsRes, claimsRes, alertsRes, health] = await Promise.all([
-        track(axios.get(`${API_BASE_URL}/farms/`)),
-        track(axios.get(`${API_BASE_URL}/claims/`)),
-        track(axios.get(`${API_BASE_URL}/alerts/`)),
+        track(api.get('/farms/')),
+        track(api.get('/claims/')),
+        track(api.get('/alerts/')),
         healthProbe,
       ]);
 
@@ -210,8 +212,8 @@ export default function Dashboard() {
       setUnreadCount(rawAlerts.filter((a) => ["DISASTER", "WARNING"].includes(String(a.status || "").toUpperCase())).length);
       setUsingCachedData(false);
 
-      if (rawClaims.length > 0 && !selectedClaimNo) {
-        setSelectedClaimNo(rawClaims[0].claim_no);
+      if (rawClaims.length > 0) {
+        setSelectedClaimNo((current) => current || rawClaims[0].claim_no);
       }
 
       // Snapshot for offline use
@@ -233,15 +235,15 @@ export default function Dashboard() {
           setLastSyncedAt(snap.ts || null);
           setUsingCachedData(true);
           setDataUnavailable(false);
-          if (snap.claims?.length > 0 && !selectedClaimNo) {
-            setSelectedClaimNo(snap.claims[0].claim_no);
+          if (snap.claims?.length > 0) {
+            setSelectedClaimNo((current) => current || snap.claims[0].claim_no);
           }
         } else {
           setDataUnavailable(true);
         }
       } catch { setDataUnavailable(true); /* no snapshot available */ }
     }
-  }, [selectedClaimNo]);
+  }, []);
 
   // Ref used by the online/offline listener (avoids stale closures)
   const fetchInitialDataRef = useRef(fetchInitialData);
@@ -272,7 +274,7 @@ export default function Dashboard() {
       if (!token) {
         throw new Error("Demo session unavailable");
       }
-      await axios.post(`${API_BASE_URL}/events/simulate/`, { event_type: eventType });
+      await api.post('/events/simulate/', { event_type: eventType });
       setIsDisasterActive(true);
       toast.success(t("map_disaster_active"));
       // Refresh lists immediately; the WebSocket NEW_ALERT push also arrives.

@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { ShieldAlert, MapPin, Send, CheckCircle2, User, Phone, ArrowLeft, Shield, Lock, Sprout } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../i18n/config';
 import LanguageSwitcher from '../components/LanguageSwitcher';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from '../utils/router';
+import { Link } from '../utils/router.jsx';
 import toast from 'react-hot-toast';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+import { api } from '../utils/api';
 
 const Register = () => {
   const { t } = useTranslation();
@@ -80,13 +79,13 @@ const Register = () => {
         ]]
       };
 
-      const response = await axios.post(`${API_BASE_URL}/auth/register/`, {
+      const response = await api.post('/auth/register/', {
         username: form.username.trim(),
         password: form.password,
         farm_name: form.name.trim(),
         phone_number: form.phone_number.trim(),
         geometry
-      });
+      }, { auth: false });
 
       localStorage.setItem('access_token', response.data.access);
       localStorage.setItem('refresh_token', response.data.refresh);

@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "../i18n/config";
 import { CheckCircle2, Clock, AlertTriangle, FileText, Smartphone, ExternalLink, ShieldCheck, Cpu } from "lucide-react";
-import axios from "axios";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
+import { api } from "../utils/api";
 
 export default function ClaimTimeline({ claimNo }) {
   const { t } = useTranslation();
@@ -31,7 +29,7 @@ export default function ClaimTimeline({ claimNo }) {
     const fetchTimeline = async () => {
       setLoading(true);
       try {
-        const response = await axios.get(`${API_BASE_URL}/claims/${claimNo}/`);
+        const response = await api.get(`/claims/${claimNo}/`);
         setClaim(response.data);
         setTimelineEvents(response.data.timeline || []);
         setError(null);

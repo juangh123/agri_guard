@@ -1,4 +1,4 @@
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../i18n/config';
 import React, { useMemo } from 'react';
 import { ShieldCheck, Clock, AlertTriangle, FileCheck, Activity } from 'lucide-react';
 
