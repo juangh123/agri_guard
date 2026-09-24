@@ -26,8 +26,12 @@ const loadingLanguages = new Map();
 const languageListeners = new Set();
 const supportedLanguageCodes = new Set(SUPPORTED_LANGUAGES.map(({ code }) => code));
 
-let currentLanguage = 'en';
+const initialLanguageSnapshot = { language: 'en', revision: 0 };
+
+let currentLanguage = initialLanguageSnapshot.language;
 let languageRequestVersion = 0;
+let languageRevision = initialLanguageSnapshot.revision;
+let languageSnapshot = initialLanguageSnapshot;
 
 function normalizeLanguage(language) {
   return String(language || 'en').split('-')[0];
@@ -39,8 +43,8 @@ function applyDocumentLanguage(language) {
   document.documentElement.dir = base === 'ar' ? 'rtl' : 'ltr';
 }
 
-function getLanguage() {
-  return currentLanguage;
+function getLanguageSnapshot() {
+  return languageSnapshot;
 }
 
 function subscribeLanguage(listener) {
@@ -51,6 +55,8 @@ function subscribeLanguage(listener) {
 function setLanguage(language) {
   const code = supportedLanguageCodes.has(language) ? language : 'en';
   currentLanguage = code;
+  languageRevision += 1;
+  languageSnapshot = { language: code, revision: languageRevision };
   localStorage.setItem('agriguard_language', code);
   applyDocumentLanguage(code);
   languageListeners.forEach((listener) => listener());
@@ -113,7 +119,11 @@ export function translate(key, options = {}) {
 }
 
 export function useTranslation() {
-  const language = useSyncExternalStore(subscribeLanguage, getLanguage, () => 'en');
+  const { language } = useSyncExternalStore(
+    subscribeLanguage,
+    getLanguageSnapshot,
+    () => initialLanguageSnapshot,
+  );
   const t = useCallback((key, options) => translateForLanguage(language, key, options), [language]);
   const i18n = useMemo(() => ({ language }), [language]);
 
@@ -145,7 +155,7 @@ export async function changeLanguage(language) {
 
   // Notify again after the bundle is available so the optimistic selection
   // renders translated content. Stale requests must not override a newer choice.
-  if (changed && currentLanguage === code) {
+  if (currentLanguage === code) {
     setLanguage(code);
   }
 
