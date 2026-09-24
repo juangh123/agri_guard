@@ -124,23 +124,32 @@ export async function changeLanguage(language) {
   const requestVersion = ++languageRequestVersion;
   const requested = normalizeLanguage(language);
   const code = supportedLanguageCodes.has(requested) ? requested : 'en';
+  const previousLanguage = currentLanguage;
+  const changed = code !== currentLanguage;
+
+  // Update the controlled selector immediately. Waiting for the translation
+  // chunk lets the native select snap back and can cancel the user's choice.
+  if (changed) {
+    setLanguage(code);
+  }
 
   try {
     await ensureLanguage(code);
   } catch (error) {
     console.warn(`Failed to load ${code} translations:`, error);
-    if (requestVersion === languageRequestVersion) {
-      setLanguage('en');
+    if (requestVersion === languageRequestVersion && currentLanguage === code) {
+      setLanguage(previousLanguage);
     }
-    return 'en';
-  }
-
-  if (requestVersion !== languageRequestVersion) {
     return currentLanguage;
   }
 
-  setLanguage(code);
-  return code;
+  // Notify again after the bundle is available so the optimistic selection
+  // renders translated content. Stale requests must not override a newer choice.
+  if (changed && currentLanguage === code) {
+    setLanguage(code);
+  }
+
+  return currentLanguage;
 }
 
 const storedLanguage = localStorage.getItem('agriguard_language');
