@@ -16,10 +16,10 @@ import {
   ArrowRight,
   Globe
 } from "lucide-react";
-import { SUPPORTED_LANGUAGES } from "../i18n/config";
+import { SUPPORTED_LANGUAGES, changeLanguage } from "../i18n/config";
 
 export function CommandPalette({ isOpen, onClose, onNavigate, onRoleChange, onThemeChange }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -51,10 +51,10 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onRoleChange, onTh
     { id: "theme_contrast", title: t("theme_mode") + ": " + t("theme_high_contrast"), category: t("theme_mode"), icon: AlertTriangle, action: () => { onThemeChange("high-contrast"); onClose(); } },
     ...SUPPORTED_LANGUAGES.map(lang => ({
       id: "lang_" + lang.code,
-      title: t("cmd_switch_lang") + ": " + lang.nativeName + " (" + lang.name + ")",
+      title: t("cmd_switch_lang") + ": " + lang.label,
       category: t("cmd_switch_lang"),
       icon: Globe,
-      action: () => { i18n.changeLanguage(lang.code); onClose(); }
+      action: () => { changeLanguage(lang.code); onClose(); }
     }))
   ];
 
