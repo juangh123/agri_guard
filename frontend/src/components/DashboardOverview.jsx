@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts';
 import { ShieldCheck, Clock, AlertTriangle, FileCheck, Activity } from 'lucide-react';
 
 const ANOMALY_DATA = [
@@ -22,6 +21,209 @@ const SOURCE_DATA = [
 const SOURCE_COLORS = ['#EF4444', '#0284C7', '#16A34A', '#D97706'];
 
 const DANGER_STATUSES = ['DISASTER', 'WARNING', 'DETECTED', 'TRIGGERED'];
+const ANOMALY_MAX = 2.5;
+
+function MonthlyClaimChart({ data }) {
+  if (data.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm font-semibold text-muted-foreground">
+        —
+      </div>
+    );
+  }
+
+  const rawClaimMax = Math.max(...data.map((item) => Number(item.claims) || 0));
+  const claimMax = Math.max(4, Math.ceil(rawClaimMax / 4) * 4);
+  const rawPayoutMax = Math.max(...data.map((item) => Number(item.payout) || 0));
+  const payoutMax = Math.max(0.5, Math.ceil(rawPayoutMax * 10) / 10);
+  const ticks = [1, 0.75, 0.5, 0.25, 0];
+
+  return (
+    <div className="flex h-full w-full flex-col">
+      <div className="flex min-h-0 flex-1 gap-2">
+        <div className="flex w-7 flex-col justify-between pb-7 pt-0.5 text-right text-[10px] font-semibold text-muted-foreground">
+          {ticks.map((tick) => (
+            <span key={`claim-${tick}`}>{Math.round(claimMax * tick)}</span>
+          ))}
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="relative flex-1">
+            <div className="absolute inset-0 flex flex-col justify-between" aria-hidden="true">
+              {ticks.map((tick) => (
+                <span key={`grid-${tick}`} className="border-t border-border/70" />
+              ))}
+            </div>
+            <div className="absolute inset-0 flex items-end justify-around gap-2 px-1">
+              {data.map((item) => {
+                const claims = Number(item.claims) || 0;
+                const payout = Number(item.payout) || 0;
+                const claimHeight = claimMax ? (claims / claimMax) * 100 : 0;
+                const payoutHeight = payoutMax ? (payout / payoutMax) * 100 : 0;
+                return (
+                  <div
+                    key={item.month}
+                    className="flex h-full flex-1 items-end justify-center gap-1"
+                    aria-label={`${item.month}: ${claims} claims, $${payout.toFixed(1)}k settled`}
+                  >
+                    <span
+                      title={`${item.month}: ${claims} claims`}
+                      className="w-2.5 max-w-5 rounded-t-sm bg-sky-600 transition-[height] duration-500 sm:w-3"
+                      style={{ height: `${Math.max(claimHeight, claims ? 4 : 0)}%` }}
+                    />
+                    <span
+                      title={`${item.month}: $${payout.toFixed(1)}k settled`}
+                      className="w-2.5 max-w-5 rounded-t-sm bg-primary transition-[height] duration-500 sm:w-3"
+                      style={{ height: `${payout ? Math.max(payoutHeight, 4) : 0}%` }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div className="flex h-7 items-end justify-around gap-2 px-1 text-[10px] font-semibold text-muted-foreground">
+            {data.map((item) => (
+              <span key={`month-${item.month}`} className="flex-1 text-center">{item.month}</span>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex w-10 flex-col justify-between pb-7 pt-0.5 text-[10px] font-semibold text-muted-foreground">
+          {ticks.map((tick) => (
+            <span key={`payout-${tick}`}>${(payoutMax * tick).toFixed(1)}k</span>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-2 flex flex-wrap justify-center gap-x-5 gap-y-1 text-[10px] font-bold text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-sky-600" />
+          Total Claims
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-primary" />
+          Completed Settlement ($k)
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function SourceDonut({ data, colors }) {
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  const radius = 44;
+  const circumference = 2 * Math.PI * radius;
+  let consumed = 0;
+
+  return (
+    <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90" role="img" aria-label="Data source contribution">
+      <circle cx="60" cy="60" r={radius} fill="none" stroke="hsl(var(--muted))" strokeWidth="18" />
+      {data.map((item, index) => {
+        const length = total ? (item.value / total) * circumference : 0;
+        const offset = -consumed;
+        consumed += length;
+        return (
+          <circle
+            key={item.name}
+            cx="60"
+            cy="60"
+            r={radius}
+            fill="none"
+            stroke={colors[index % colors.length]}
+            strokeWidth="18"
+            strokeDasharray={`${length} ${circumference - length}`}
+            strokeDashoffset={offset}
+          >
+            <title>{`${item.name}: ${item.value}%`}</title>
+          </circle>
+        );
+      })}
+    </svg>
+  );
+}
+
+function AnomalyChart({ data, thresholdLabel, anomalyLabel }) {
+  const xFor = (index) => (data.length > 1 ? (index / (data.length - 1)) * 100 : 0);
+  const yFor = (value) => Math.max(0, Math.min(100, (1 - value / ANOMALY_MAX) * 100));
+  const points = data.map((item, index) => ({
+    ...item,
+    x: xFor(index),
+    y: yFor(item.anomaly),
+  }));
+  const linePath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+  const areaPath = points.length
+    ? `M ${points[0].x} 100 L ${points.map((point) => `${point.x} ${point.y}`).join(' L ')} L ${points.at(-1).x} 100 Z`
+    : '';
+  const thresholdY = yFor(1.5);
+  const yTicks = [2.5, 2, 1.5, 1, 0.5, 0];
+
+  return (
+    <div className="flex h-full w-full gap-2">
+      <div className="flex w-7 flex-col justify-between pb-7 text-right text-[10px] font-semibold text-muted-foreground">
+        {yTicks.map((tick) => (
+          <span key={tick}>{tick}</span>
+        ))}
+      </div>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="relative flex-1">
+          <div className="absolute inset-0 flex flex-col justify-between" aria-hidden="true">
+            {yTicks.map((tick) => (
+              <span key={`anomaly-grid-${tick}`} className="border-t border-border/70" />
+            ))}
+          </div>
+          <svg
+            className="absolute inset-0 h-full w-full"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            role="img"
+            aria-label={`${anomalyLabel} with ${thresholdLabel} 1.5`}
+          >
+            <defs>
+              <linearGradient id="anomaly-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#f97316" stopOpacity="0.5" />
+                <stop offset="95%" stopColor="#f97316" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            {areaPath && <path d={areaPath} fill="url(#anomaly-fill)" />}
+            <path
+              d={`M 0 ${thresholdY} L 100 ${thresholdY}`}
+              fill="none"
+              stroke="#ef4444"
+              strokeWidth="2"
+              strokeDasharray="5 5"
+              vectorEffect="non-scaling-stroke"
+            />
+            <path
+              d={linePath}
+              fill="none"
+              stroke="#f97316"
+              strokeWidth="3"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+          <div className="absolute inset-0" aria-hidden="true">
+            {points.map((point) => (
+              <span
+                key={`anomaly-${point.day}`}
+                title={`Day ${point.day}: ${point.anomaly}`}
+                className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-card bg-orange-500 shadow-sm"
+                style={{ left: `${point.x}%`, top: `${point.y}%` }}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="flex h-7 items-end justify-between text-[10px] font-semibold text-muted-foreground">
+          {data.map((item) => (
+            <span key={`day-${item.day}`}>{item.day}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function formatMoney(value) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -142,29 +344,7 @@ export default function DashboardOverview({ farms = [], alerts = [], claims = []
             </select>
           </div>
           <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontWeight: 500 }} dy={10} />
-                <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontWeight: 500 }} />
-                <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontWeight: 500 }} />
-                <Tooltip
-                  cursor={{ fill: 'hsl(var(--muted) / 0.5)' }}
-                  contentStyle={{
-                    borderRadius: '12px',
-                    border: '1px solid hsl(var(--border))',
-                    backgroundColor: 'hsl(var(--popover))',
-                    color: 'hsl(var(--popover-foreground))',
-                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.15)',
-                  }}
-                  itemStyle={{ fontWeight: 600 }}
-                  labelStyle={{ fontWeight: 700, marginBottom: '4px' }}
-                />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 600, paddingTop: '10px' }} />
-                <Bar yAxisId="left" dataKey="claims" name={t('total_claims')} fill="#0284C7" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                <Bar yAxisId="right" dataKey="payout" name={t('payout_amount')} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} maxBarSize={40} />
-              </BarChart>
-            </ResponsiveContainer>
+            <MonthlyClaimChart data={monthlyData} />
           </div>
         </div>
 
@@ -173,33 +353,7 @@ export default function DashboardOverview({ farms = [], alerts = [], claims = []
           <h3 className="text-lg font-bold text-foreground mb-1">{t('multi_source_consensus')}</h3>
           <p className="text-xs text-muted-foreground mb-4">{t('consensus_desc')}</p>
           <div className="flex-1 w-full -ml-2 min-h-[180px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={SOURCE_DATA}
-                  cx="50%"
-                  cy="45%"
-                  innerRadius={55}
-                  outerRadius={75}
-                  paddingAngle={5}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  {SOURCE_DATA.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={SOURCE_COLORS[index % SOURCE_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: '12px',
-                    border: '1px solid hsl(var(--border))',
-                    backgroundColor: 'hsl(var(--popover))',
-                    color: 'hsl(var(--popover-foreground))',
-                    fontWeight: 'bold',
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            <SourceDonut data={SOURCE_DATA} colors={SOURCE_COLORS} />
           </div>
           <div className="grid grid-cols-2 gap-2 mt-2">
             {SOURCE_DATA.map((item, i) => (
@@ -232,32 +386,11 @@ export default function DashboardOverview({ farms = [], alerts = [], claims = []
           </div>
         </div>
         <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={ANOMALY_DATA} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorAnomaly" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f97316" stopOpacity={0.5} />
-                  <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-              <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontWeight: 500 }} dy={10} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontWeight: 500 }} />
-              <Tooltip
-                contentStyle={{
-                  borderRadius: '12px',
-                  border: '1px solid hsl(var(--border))',
-                  backgroundColor: 'hsl(var(--popover))',
-                  color: 'hsl(var(--popover-foreground))',
-                  boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.15)',
-                }}
-                itemStyle={{ fontWeight: 600 }}
-                labelStyle={{ fontWeight: 700, marginBottom: '4px' }}
-              />
-              <Area type="monotone" dataKey="threshold" stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" fill="none" name={t('threshold_label')} />
-              <Area type="monotone" dataKey="anomaly" stroke="#f97316" strokeWidth={3} fillOpacity={1} fill="url(#colorAnomaly)" name={t('recorded_anomaly')} />
-            </AreaChart>
-          </ResponsiveContainer>
+          <AnomalyChart
+            data={ANOMALY_DATA}
+            thresholdLabel={t('threshold_label')}
+            anomalyLabel={t('recorded_anomaly')}
+          />
         </div>
       </div>
 
