@@ -159,13 +159,13 @@ export default function Dashboard() {
   // A stale or role-restricted ?tab= value must never leave the workspace blank.
   useEffect(() => {
     const allowed = isFarmer ? FARMER_TABS : TAB_IDS;
-    const nextTab = allowed.includes(activeTab) ? activeTab : "overview";
-    const requested = searchParams.get("tab");
+    const requested = String(searchParams.get("tab") || "").toLowerCase();
+    const nextTab = allowed.includes(requested) ? requested : "overview";
 
     if (nextTab !== activeTab) {
       setActiveTab(nextTab);
     }
-    if (requested && requested.toLowerCase() !== nextTab) {
+    if (requested && requested !== nextTab) {
       setSearchParams({ tab: nextTab }, { replace: true });
     }
   }, [activeTab, isFarmer, searchParams, setSearchParams]);
