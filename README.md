@@ -14,13 +14,17 @@
 
 - Application: [https://agri-guard-api-live.vercel.app](https://agri-guard-api-live.vercel.app)
 - Login: `demo` / `demo123`
-- Persistence: PostgreSQL + PostGIS on Supabase (session pooler)
+- Live status: [https://agri-guard-api-live.vercel.app/api/health/](https://agri-guard-api-live.vercel.app/api/health/)
 - Real-time updates: REST + WebSocket (`/ws/alerts/`)
 
-The Vercel deployment is the stable judge-facing entry point. Claims and disaster
-events survive redeploys. OpenAI, Twilio, and on-chain settlement remain in safe
-mock or `PENDING` mode unless both their production credentials and explicit
-`LIVE_*` gates are enabled.
+The Vercel deployment is the stable judge-facing entry point. Persistence is
+PostgreSQL + PostGIS on Supabase when `DATABASE_URL` points at it. If that
+database is missing or unreachable the container falls back to a temporary
+SQLite file so the demo keeps serving; `/api/health/` reports the live mode
+and the dashboard shows a banner whenever the fallback is in use, so no
+reviewer has to guess whether the data will survive a redeploy. OpenAI,
+Twilio, and on-chain settlement remain in safe mock or `PENDING` mode unless
+both their production credentials and explicit `LIVE_*` gates are enabled.
 
 ---
 
@@ -482,6 +486,8 @@ agri_guard/
 │   │   ├── PITCH_SCRIPT.md
 │   │   └── DECK_OUTLINE.md
 │   └── screenshots/            # Six current verified captures plus legacy reference images
+├── scripts/                   # verify_deployment.py - live health probe (stdlib only)
+├── .github/workflows/         # CI plus the scheduled Deployment Watch probe
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt

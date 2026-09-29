@@ -81,6 +81,10 @@ logged but never prevents Daphne from starting.
 {
   "status": "ok",
   "persistence_mode": "persistent",
+  "degraded": false,
+  "degraded_reason": null,
+  "started_at": "2026-09-23T14:02:11+00:00",
+  "uptime_seconds": 1693,
   "database": { "engine": "postgis", "reachable": true, "error": null },
   "migrations": { "applied": 25, "latest": "core.0007_alter_claimtimeline_options" },
   "data": { "farms": 4, "claims": 9, "alerts": 9 },
@@ -95,6 +99,27 @@ is running on throwaway data, and the dashboard shows the matching warning
 banner so reviewers are not misled by an empty database. The frontend also
 renders an explicit banner when the API is unreachable and no cached snapshot
 exists, instead of silently displaying zeroes.
+
+### Verify the live deployment
+
+`scripts/verify_deployment.py` turns the health endpoint into a pass/fail check.
+It is standard-library only, so it runs without the Django/GeoDjango stack:
+
+```bash
+python scripts/verify_deployment.py                            # judge-facing URL
+python scripts/verify_deployment.py --url http://127.0.0.1:8000
+python scripts/verify_deployment.py --no-require-persistent    # accept the fallback
+```
+
+It exits non-zero and prints the offending value when the database is
+unreachable, migrations have not run, demo data is missing, or (by default)
+`persistence_mode` is `ephemeral`. The `Deployment Watch` workflow runs the same
+probe every six hours, so a database that disappears again fails a scheduled run
+instead of waiting for someone to open the dashboard.
+
+`degraded_reason` and `started_at`/`uptime_seconds` say why the container fell
+back and how long it has been serving throwaway data. Containers started before
+these fields existed report `null`.
 
 ### Restoring a vanished database
 
@@ -115,9 +140,14 @@ project domain stops resolving. To restore persistence:
    vercel env add DATABASE_URL production   # paste the new session-pooler URL
    ```
 
-3. Redeploy, then confirm `/api/health/` reports `persistence_mode: "persistent"`
-   with the expected row counts, and re-run `seed_demo_data` if the new project
-   is empty:
+3. Redeploy, then confirm the probe passes and reports
+   `persistence_mode: persistent`:
+
+   ```bash
+   python scripts/verify_deployment.py
+   ```
+
+   Re-run `seed_demo_data` if the restored project is empty:
 
    ```bash
    vercel env pull .env.production.local

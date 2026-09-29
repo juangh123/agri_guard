@@ -15,6 +15,8 @@ DB_ATTEMPT_TIMEOUT="${DB_ATTEMPT_TIMEOUT:-12}"
 ALLOW_EPHEMERAL_FALLBACK="${ALLOW_EPHEMERAL_FALLBACK:-1}"
 ALERT_WEBHOOK_TIMEOUT="${ALERT_WEBHOOK_TIMEOUT:-2}"
 DEGRADED_REASON=""
+# Recorded at container start so /api/health/ can report serving time.
+STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 if [ -z "${DATABASE_URL:-}" ]; then
   export DATABASE_URL="spatialite:////tmp/agri_guard.sqlite3"
@@ -57,6 +59,7 @@ print(json.dumps({
     'event': 'agri_guard_startup',
     'persistence_mode': mode,
     'degraded': mode == 'ephemeral',
+    'degraded_reason': os.environ.get('AGRIGUARD_DEGRADED_REASON') or None,
     'database_scheme': os.environ.get('DATABASE_URL', '').split(':', 1)[0],
     'environment': os.environ.get('VERCEL_ENV', 'local'),
     'release': os.environ.get('VERCEL_GIT_COMMIT_SHA', '')[:7],
@@ -133,6 +136,7 @@ if [ "${migrated}" -ne 1 ]; then
     echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
     export DATABASE_URL="spatialite:////tmp/agri_guard.sqlite3"
     PERSISTENCE_MODE="ephemeral"
+    DEGRADED_REASON="DATABASE_URL was unreachable after ${elapsed}s; serving the demo from /tmp/agri_guard.sqlite3"
     # Notify before migrating the fallback, so the alert still fires when the
     # fallback itself is broken.
     notify_degraded "DATABASE_URL was unreachable after ${elapsed}s; serving the demo from /tmp/agri_guard.sqlite3"
@@ -148,6 +152,10 @@ fi
 # Daphne inherits this, and /api/health/ reports it so the UI can warn reviewers
 # when they are looking at throwaway data.
 export AGRIGUARD_PERSISTENCE_MODE="${PERSISTENCE_MODE}"
+# Surfaced by /api/health/ so operators can see why the demo degraded without
+# digging through container logs.
+export AGRIGUARD_DEGRADED_REASON="${DEGRADED_REASON}"
+export AGRIGUARD_STARTED_AT="${STARTED_AT}"
 
 emit_startup_event
 

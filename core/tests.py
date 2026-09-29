@@ -17,6 +17,7 @@ AgriGuard 最小测试套件（W7）。
 template1 中启用 postgis 扩展，供 Django 创建测试库继承）。
 """
 import os
+import datetime as dt
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest import mock
@@ -751,3 +752,50 @@ class AlertConsumerPollingTests(TransactionTestCase):
         self.assertEqual(payload['message']['data']['id'], alert.id)
         self.assertEqual(payload['message']['data']['farm_name'], farm.name)
         self.assertEqual(payload['message']['data']['confidence'], 72.0)
+
+class HealthEndpointTests(TestCase):
+    """The unauthenticated probe operators rely on to spot a degraded deploy."""
+
+    def test_health_reports_expected_shape(self):
+        response = self.client.get('/api/health/')
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+
+        self.assertEqual(payload['status'], 'ok')
+        self.assertTrue(payload['database']['reachable'])
+        for key in (
+            'persistence_mode',
+            'degraded',
+            'degraded_reason',
+            'started_at',
+            'uptime_seconds',
+            'environment',
+            'release',
+        ):
+            self.assertIn(key, payload)
+        self.assertIsInstance(payload['migrations']['applied'], int)
+        self.assertGreaterEqual(payload['data']['farms'], 0)
+
+    def test_health_surfaces_degradation_reason(self):
+        reason = (
+            'DATABASE_URL was unreachable after 12s; serving the demo from '
+            '/tmp/agri_guard.sqlite3'
+        )
+        with mock.patch.dict(os.environ, {
+            'AGRIGUARD_PERSISTENCE_MODE': 'ephemeral',
+            'AGRIGUARD_DEGRADED_REASON': reason,
+        }):
+            payload = self.client.get('/api/health/').json()
+
+        self.assertEqual(payload['persistence_mode'], 'ephemeral')
+        self.assertTrue(payload['degraded'])
+        self.assertEqual(payload['degraded_reason'], reason)
+
+    def test_health_computes_uptime_from_started_at(self):
+        started = (timezone.now() - dt.timedelta(seconds=90)).replace(microsecond=0)
+        with mock.patch.dict(os.environ, {'AGRIGUARD_STARTED_AT': started.isoformat()}):
+            payload = self.client.get('/api/health/').json()
+
+        self.assertIsNotNone(payload['started_at'])
+        self.assertGreaterEqual(payload['uptime_seconds'], 89)
+        self.assertLess(payload['uptime_seconds'], 300)

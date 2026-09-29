@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 
@@ -437,9 +438,24 @@ def health(request):
         # Older containers did not export the mode; infer it from the engine.
         persistence_mode = 'ephemeral' if 'sqlite' in engine else 'persistent'
 
+    degraded_reason = os.getenv('AGRIGUARD_DEGRADED_REASON', '').strip() or None
+    started_at_raw = os.getenv('AGRIGUARD_STARTED_AT', '').strip()
+    started_at = parse_datetime(started_at_raw.replace('Z', '+00:00')) if started_at_raw else None
+    if started_at is not None and timezone.is_naive(started_at):
+        started_at = timezone.make_aware(started_at, datetime.timezone.utc)
+    uptime_seconds = (
+        max(0, int((timezone.now() - started_at).total_seconds()))
+        if started_at is not None
+        else None
+    )
+
     payload = {
         'status': 'ok',
         'persistence_mode': persistence_mode,
+        'degraded': persistence_mode == 'ephemeral',
+        'degraded_reason': degraded_reason,
+        'started_at': started_at.isoformat() if started_at is not None else None,
+        'uptime_seconds': uptime_seconds,
         'database': {
             'engine': engine.rsplit('.', 1)[-1] or 'unknown',
             'reachable': False,
