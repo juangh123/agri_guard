@@ -18,13 +18,14 @@
 - Real-time updates: REST + WebSocket (`/ws/alerts/`)
 
 The Vercel deployment is the stable judge-facing entry point. Persistence is
-PostgreSQL + PostGIS on Supabase when `DATABASE_URL` points at it. If that
-database is missing or unreachable the container falls back to a temporary
-SQLite file so the demo keeps serving; `/api/health/` reports the live mode
-and the dashboard shows a banner whenever the fallback is in use, so no
-reviewer has to guess whether the data will survive a redeploy. OpenAI,
-Twilio, and on-chain settlement remain in safe mock or `PENDING` mode unless
-both their production credentials and explicit `LIVE_*` gates are enabled.
+managed PostgreSQL + PostGIS when `DATABASE_URL` points at it (the current
+production database is hosted on Railway). If that database is missing or
+unreachable the container falls back to a temporary SQLite file so the demo
+keeps serving; `/api/health/` reports the live mode and the dashboard shows a
+banner whenever the fallback is in use, so no reviewer has to guess whether the
+data will survive a redeploy. OpenAI, Twilio, and on-chain settlement remain in
+safe mock or `PENDING` mode unless both their production credentials and
+explicit `LIVE_*` gates are enabled.
 
 ---
 
@@ -333,6 +334,10 @@ LIVE_SETTLEMENT_ENABLED=False
 >
 > Real SMS and on-chain transfers stay disabled unless the corresponding
 > `LIVE_*_ENABLED` flag is explicitly set to `True`.
+>
+> Managed providers may expose `postgres://` or `postgresql://` URLs. The Vercel
+> entrypoint normalizes either scheme to `postgis://` before migrations so
+> GeoDjango selects the spatial backend automatically.
 
 ---
 

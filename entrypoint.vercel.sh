@@ -24,6 +24,15 @@ if [ -z "${DATABASE_URL:-}" ]; then
   DEGRADED_REASON="DATABASE_URL is not configured; serving the demo from /tmp/agri_guard.sqlite3"
   echo "=== DATABASE_URL not configured; using ephemeral demo database ==="
 else
+  # Managed PostgreSQL providers commonly expose postgres:// or
+  # postgresql:// URLs. GeoDjango only selects its spatial backend for the
+  # postgis:// scheme, so normalize the provider URL before migrations run.
+  case "${DATABASE_URL%%:*}" in
+    postgres|postgresql)
+      export DATABASE_URL="postgis://${DATABASE_URL#*://}"
+      echo "=== Normalized provider PostgreSQL URL for GeoDjango ==="
+      ;;
+  esac
   PERSISTENCE_MODE="persistent"
   case "${DATABASE_URL%%:*}" in
     postgres|postgis)

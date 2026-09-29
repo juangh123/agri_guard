@@ -127,5 +127,6 @@ tmp_register_test.py
 tmp_smoke_test.py
 
 .vercel
+.railway/
 .env*
 /.vercel-temp.env

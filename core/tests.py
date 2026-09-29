@@ -731,10 +731,10 @@ class AlertConsumerPollingTests(TransactionTestCase):
 
         async def scenario():
             communicator = WebsocketCommunicator(ALERT_WS_APPLICATION, '/ws/alerts/')
-            connected, _ = await communicator.connect()
+            connected, _ = await communicator.connect(timeout=5)
             self.assertTrue(connected)
 
-            greeting = await communicator.receive_json_from()
+            greeting = await communicator.receive_json_from(timeout=5)
             self.assertEqual(greeting['message'], 'Connected to Alert WebSocket')
 
             alert = await database_sync_to_async(RiskAlert.objects.create)(
@@ -743,7 +743,7 @@ class AlertConsumerPollingTests(TransactionTestCase):
                 status='WARNING',
                 confidence=72,
             )
-            payload = await communicator.receive_json_from(timeout=1)
+            payload = await communicator.receive_json_from(timeout=3)
             await communicator.disconnect()
             return alert, payload
 

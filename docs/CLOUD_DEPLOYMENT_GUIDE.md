@@ -9,8 +9,8 @@ This guide deploys the public judge-facing demo without requiring local setup.
 | Public URL | [https://agri-guard-api-live.vercel.app](https://agri-guard-api-live.vercel.app) |
 | Django API / WebSocket | Vercel container services, routed by `vercel.json` |
 | Frontend | Vercel container running the production Vite build behind Nginx |
-| Database | Supabase PostgreSQL 17 with PostGIS 3.3 |
-| Connection mode | Supabase session pooler on port `5432` |
+| Database | Railway PostgreSQL 16 with PostGIS |
+| Connection mode | Railway public TCP proxy with TLS negotiated by `psycopg2` |
 
 The active backend logs `=== Persistent PostgreSQL database configured ===` and
 `No migrations to apply` after redeploys. A simulated claim was written, the
@@ -121,33 +121,32 @@ instead of waiting for someone to open the dashboard.
 back and how long it has been serving throwaway data. Containers started before
 these fields existed report `null`.
 
-### Restoring a vanished database
+### Replacing the database
 
-Supabase projects can be deleted or recycled; when that happens the pooler
-answers `FATAL: (ENOTFOUND) tenant/user postgres.<project-ref> not found` and the
-project domain stops resolving. To restore persistence:
+Managed databases can be deleted, suspended, or moved. To point the deployment
+at a new PostgreSQL/PostGIS database:
 
-1. Create or restore the Supabase project and enable PostGIS:
+1. Create a PostgreSQL database and enable PostGIS:
 
    ```sql
-   create extension if not exists postgis with schema extensions;
+   create extension if not exists postgis;
    ```
 
-2. Update the production variable:
+2. Update the production variable with the provider's public connection string:
 
    ```bash
-   vercel env rm DATABASE_URL production
-   vercel env add DATABASE_URL production   # paste the new session-pooler URL
+   vercel env rm DATABASE_URL production -y
+   vercel env add DATABASE_URL production --sensitive
    ```
 
-3. Redeploy, then confirm the probe passes and reports
+3. Redeploy and confirm the probe passes and reports
    `persistence_mode: persistent`:
 
    ```bash
    python scripts/verify_deployment.py
    ```
 
-   Re-run `seed_demo_data` if the restored project is empty:
+   Re-run `seed_demo_data` if the new database is empty:
 
    ```bash
    vercel env pull .env.production.local
@@ -175,30 +174,39 @@ project domain stops resolving. To restore persistence:
 > is always labelled: the container logs a banner, `/api/health/` reports
 > `persistence_mode: "ephemeral"`, and the dashboard shows a warning strip.
 
-### Supabase setup
+### Managed PostGIS setup
 
-1. Create or restore a Supabase project.
-2. Enable PostGIS in the `extensions` schema:
+Railway's official `PostGIS` template provides a persistent volume and is the
+current production host. The Vercel entrypoint also accepts Supabase or another
+managed PostgreSQL provider.
+
+1. Create a PostgreSQL/PostGIS service.
+2. Enable PostGIS:
 
 ```sql
-create extension if not exists postgis with schema extensions;
+create extension if not exists postgis;
 ```
 
-3. Use the Supabase **session pooler** connection string and keep the `postgis`
-   scheme so GeoDjango selects the spatial backend:
+3. Use a public connection string reachable from Vercel. The entrypoint accepts
+   either the spatial `postgis` scheme or a provider `postgres`/`postgresql`
+   URL, which it normalizes before migrations:
 
 ```dotenv
-DATABASE_URL=postgis://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require
+# PostgreSQL/PostGIS on Railway
+DATABASE_URL=postgresql://postgres:<password>@<public-proxy-host>:<port>/railway
+
+# Supabase session pooler alternative
+DATABASE_URL=postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require
 ```
 
 4. Run `python manage.py migrate` and `python manage.py seed_demo_data`.
-5. Enable row-level security on all tables in the exposed `public` schema. Django
-   connects as the table owner and remains unaffected, while anonymous PostgREST
-   reads are denied.
+5. If the provider exposes PostgREST directly, enable row-level security on all
+   application tables and keep the database connection private to trusted
+   services.
 
-Run the Supabase security advisor after migrations. The only expected public
-schema notice is `RLS Enabled No Policy`; `RLS Disabled in Public` should not
-remain for application tables.
+Run the provider's security advisor after migrations. The only expected public
+schema notice for a PostgREST-enabled database is `RLS Enabled No Policy`;
+`RLS Disabled in Public` should not remain for application tables.
 
 ## 1. Backend on Render
 
