@@ -62,6 +62,7 @@ The product target is to compress the claim cycle from 12 weeks to under 3 minut
 
 可直接复制项目内已编写完备的文档：
 👉 **[SUBMISSION_FULL.md](SUBMISSION_FULL.md)**
+👉 **[DORAHACKS_BUIDL_FORM.md](DORAHACKS_BUIDL_FORM.md)**（逐字段填写稿）
 
 该文档包含：
 - 完整 Elevator Pitch (90秒发言稿)

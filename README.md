@@ -521,6 +521,7 @@ agri_guard/
 | **Demo Video** | [`docs/AgriGuard_Demo_Final.mp4`](docs/AgriGuard_Demo_Final.mp4) — 121s honest-settlement walkthrough; re-record from the canonical URL before final submission so the visuals match the refreshed screenshots |
 | **Presentation** | [`docs/AgriGuard_Presentation_submission.pptx`](docs/AgriGuard_Presentation_submission.pptx) |
 | **Submission window** | 2026-10-14 08:23 UTC → 2026-10-17 20:00 UTC (Beijing: 10-14 16:23 → 10-18 04:00) |
+| **BUIDL worksheet** | [`docs/DORAHACKS_BUIDL_FORM.md`](docs/DORAHACKS_BUIDL_FORM.md) |
 | **Submission URL** | _Pending DoraHacks submission — update after the BUIDL is created_ |
 
 ---
