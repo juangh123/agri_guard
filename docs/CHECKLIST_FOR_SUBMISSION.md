@@ -34,7 +34,8 @@
 | **Tech Stack** | Django, PostGIS, Celery, Redis, React, MapLibre GL, Esri Living Atlas, Web3.py, Solidity reference contract, OpenAI, Twilio | 技术栈 |
 | **License** | MIT License | 开源协议 |
 | **Repository URL** | https://github.com/juangh123/agri_guard | 代码仓库 |
-| **Demo URL / Video** | `docs/AgriGuard_Demo_Final.mp4`（仓库内） | 已按当前界面重制；正式提交时也可同步上传 YouTube/Unlisted 或 Loom |
+| **Demo URL** | https://agri-guard-api-live.vercel.app （`demo` / `demo123`） | 规范评委入口，前后端同源 |
+| **Video** | `docs/AgriGuard_Demo_Final.mp4`（仓库内） | 121 秒旧版录制；正式提交前用当前 UI 重录，或上传 YouTube/Unlisted / Loom |
 
 ---
 
@@ -120,16 +121,19 @@ The product target is to compress the claim cycle from 12 weeks to under 3 minut
 
 ---
 
-## 6. 本地最终验收记录（2026-09-15）
+## 6. 最终验收记录（2026-10-03）
 
 | 项目 | 结果 |
 |:---|:---|
+| 线上部署 | `https://agri-guard-api-live.vercel.app` · release `f369ca1` · PostGIS persistent · `scripts/verify_deployment.py` **15/15 PASS** |
+| 实时告警 | 前端 bundle 生成绝对 `wss://` 地址；服务端 `/ws/alerts/` 返回 `101 Switching Protocols` |
+| 验收截图 | `docs/screenshots/09`–`14` 已于 2026-10-03 从规范线上入口重拍，含 `[SIMULATED]`、`PENDING`、无 TxHash 的完整时间轴 |
 | PPT | `docs/AgriGuard_Presentation_submission.pptx` · 12 slides · SHA-256 `289f5e7ebbffdb731235ee862ebdcbbed16ba28664f1c36b80b7c758e71fb17f` |
 | 视频 | `docs/AgriGuard_Demo_Final.mp4` · 121.066667s · 1440×900 · SHA-256 `752C68B57FFDBB0E512BC5162675BD437161E1D1D7D96BCC01CAB6E090B07693` |
-| 自动化测试 | `43 passed`（1 个 websockets 依赖弃用警告） |
+| 自动化测试 | `manage.py test core` **50/50 passed** |
 | 前端 | `npm run lint` 与 production `npm run build` 通过 |
 | Django | `manage.py check`、迁移漂移检查通过；生产环境模式下仅保留 HSTS subdomain/preload 提示 |
 | 智能合约 | `solc 0.8.24` 编译通过 |
 | 公开数据边界 | 匿名 API 不返回农场电话/钱包；events/alerts/claims 为只读，未登录或公开 demo 用户不能篡改审计记录 |
 
-> 当前线上后端仍可能使用旧构建。上面的视频使用本地 production preview 和当前验收截图生成；正式录制或答辩前必须完成部署并重新执行线上版本校验。
+> 正式提交前仍建议重录视频，使 121 秒演示与 2026-10-03 的界面和截图完全一致。
