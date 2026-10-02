@@ -1,4 +1,7 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
+const DEFAULT_API_BASE_URL = import.meta.env.PROD
+  ? "/api"
+  : "http://127.0.0.1:8000/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL;
 
 // Judges should never hit a login wall: the demo account is provisioned by
 // seed_demo_data and only used for the public walkthrough.

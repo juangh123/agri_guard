@@ -109,6 +109,7 @@ It is standard-library only, so it runs without the Django/GeoDjango stack:
 python scripts/verify_deployment.py                            # judge-facing URL
 python scripts/verify_deployment.py --url http://127.0.0.1:8000
 python scripts/verify_deployment.py --no-require-persistent    # accept the fallback
+python scripts/verify_deployment.py --no-frontend              # API checks only
 ```
 
 It exits non-zero and prints the offending value when the database is
@@ -116,6 +117,24 @@ unreachable, migrations have not run, demo data is missing, or (by default)
 `persistence_mode` is `ephemeral`. The `Deployment Watch` workflow runs the same
 probe every six hours, so a database that disappears again fails a scheduled run
 instead of waiting for someone to open the dashboard.
+
+For remote hosts the probe also walks the surface a judge actually opens, because
+the API can be healthy while the browser entry point is stale:
+
+- `frontend_serves_spa` and `frontend_entry_asset_reachable` confirm `/` returns
+  the React shell and its fingerprinted `/assets/index-*.js` bundle.
+- `frontend_api_same_origin` and `frontend_has_no_localhost_api` fail when a
+  production bundle bakes in a foreign or local API host. The retired
+  `agri-guard-murex.vercel.app` build shipped `https://agri-guard-jcko.onrender.com/api`
+  and this check now catches that class of regression.
+- `frontend_websocket_url_absolute` fails when the lazy Dashboard chunk builds a
+  relative socket URL, which browsers reject (`new WebSocket("/ws/alerts/")`).
+- `public_api_geojson` requires anonymous `/api/farms/` to answer with GeoJSON
+  instead of the HTML shell, and `websocket_upgrade` performs a real handshake
+  against `/ws/alerts/` and expects `101 Switching Protocols`.
+
+The browser checks are skipped automatically for `localhost`/`127.0.0.1` targets,
+where Django is usually served without a SPA in front of it.
 
 `degraded_reason` and `started_at`/`uptime_seconds` say why the container fell
 back and how long it has been serving throwaway data. Containers started before

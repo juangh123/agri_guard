@@ -8,13 +8,18 @@
 
 | 节点 | 时间 | 状态 |
 |:---|:---|:---|
-| Pre-registration opens | 2026/09/26 18:00（北京时间） | 待开启 |
-| Submission window opens | 2026/10/03 16:23（北京时间） | 待开启 |
-| Submission deadline | 2026/10/11 04:00（北京时间） | 待开启 |
+| Pre-registration opens | 2026/10/10 18:00（北京时间，10:00 UTC） | 待开启 |
+| Submission window opens | 2026/10/14 16:23（北京时间，08:23 UTC） | 待开启 |
+| Submission deadline | **2026/10/18 04:00（北京时间，10/17 20:00 UTC）** | 待开启 |
 
 > 来源：https://dorahacks.io/hackathon/satnav/detail
 >
-> 已于 2026-09-15 直接核对页面内嵌时间数据与页面显示；平台时间字段按 UTC 换算为北京时间。
+> 已于 **2026-10-03** 重新核对页面内嵌时间数据（pre-registration 与 deadline 在 HTML 中为 ISO 时间
+> `2026-10-10T10:00:00.000Z` / `2026-10-17T20:00:00.000Z`），页面显示的
+> `2026/10/14 08:23` 同为 UTC，按此换算为北京时间。
+>
+> ⚠️ 官方时间线已整体后移：旧版本文档记录的 09/26 开放、10/03 开放提交、10/11 截稿均已失效，
+> 请勿按旧日期安排录制与提交。
 
 ---
 
@@ -100,10 +105,11 @@ The product target is to compress the claim cycle from 12 weeks to under 3 minut
 
 ## 5. DoraHacks 提交最后核对 CheckList
 
-- [ ] 在 2026/10/11 04:00（北京时间）前完成 BUIDL 提交。
+- [ ] 在 **2026/10/18 04:00（北京时间）** 前完成 BUIDL 提交；提交窗口于 2026/10/14 16:23（北京时间）开启，先完成注册再提交。
 - [ ] GitHub 仓库已设为 **Public**（公开）。
 - [ ] 确保 .env 中的真实 API Key **未被提交**（.gitignore 已配置）。
 - [ ] 录制或答辩前重新部署最新前后端，并确认线上 claim 时间轴包含 `[SIMULATED]` 与 `PENDING`、没有伪造 TxHash，匿名 `/api/farms/` 不返回 `phone_number` / `wallet_address`。
+- [ ] 提交前运行 `python scripts/verify_deployment.py`，确认 15/15 全部 PASS（它会同时检查前端 bundle 是否把 API 指向本域名、以及实时告警 WebSocket 是否可用）；只在**本仓库 README 中写明的** `https://agri-guard-api-live.vercel.app` 上录制，不要使用旧的 `agri-guard-murex.vercel.app`（该地址的后端已下线）。
 - [ ] 上传 Cover 封面图（使用 docs/screenshots/09_overview_pipeline.png）。
 - [ ] 上传 Gallery 相册（使用 docs/screenshots/09 至 14 共 6 张当前验收截图）。
 - [ ] 审核并上传 `docs/AgriGuard_Demo_Final.mp4`，或替换为基于同一脚本录制的 YouTube/Unlisted / Loom 链接。

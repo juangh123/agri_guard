@@ -468,7 +468,7 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
 
       {/* Live Atlas Legend */}
       {activeLegendLayers.length > 0 && (
-        <div className="absolute bottom-28 left-4 z-10 glass-panel rounded-xl px-3 py-3 shadow-lg border border-border/40 bg-card/85 backdrop-blur-md max-w-[240px] max-h-48 overflow-y-auto scrollbar-thin">
+        <div className="absolute bottom-56 md:bottom-28 left-4 z-10 glass-panel rounded-xl px-3 py-3 shadow-lg border border-border/40 bg-card/85 backdrop-blur-md max-w-[240px] max-h-32 sm:max-h-48 overflow-y-auto scrollbar-thin">
           <div className="mb-2 flex items-center gap-2 text-xs font-bold text-foreground">
             <span className="h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.8)]" />
             {t("map_esri_living_atlas")}

@@ -91,6 +91,7 @@ export default function Dashboard() {
     } catch { return null; }
   });
   const [usingCachedData, setUsingCachedData] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   // Deployment health: distinguishes "no data yet" from "the backend cannot
   // serve data", so reviewers never read an empty dashboard as real figures.
   const [systemStatus, setSystemStatus] = useState(null);
@@ -170,7 +171,7 @@ export default function Dashboard() {
     }
   }, [activeTab, isFarmer, searchParams, setSearchParams]);
 
-  const fetchInitialData = useCallback(async () => {
+  const fetchInitialData = useCallback(async ({ selectNewestClaim = false } = {}) => {
     // App and Dashboard share one silent-login promise. Waiting here avoids
     // four unauthenticated 401s followed by four identical retries on cold load.
     await ensureDemoSession();
@@ -213,7 +214,9 @@ export default function Dashboard() {
       setUsingCachedData(false);
 
       if (rawClaims.length > 0) {
-        setSelectedClaimNo((current) => current || rawClaims[0].claim_no);
+        setSelectedClaimNo((current) =>
+          selectNewestClaim ? (rawClaims[0].claim_no || current) : (current || rawClaims[0].claim_no)
+        );
       }
 
       // Snapshot for offline use
@@ -242,6 +245,8 @@ export default function Dashboard() {
           setDataUnavailable(true);
         }
       } catch { setDataUnavailable(true); /* no snapshot available */ }
+    } finally {
+      setIsInitialLoading(false);
     }
   }, []);
 
@@ -278,7 +283,7 @@ export default function Dashboard() {
       setIsDisasterActive(true);
       toast.success(t("map_disaster_active"));
       // Refresh lists immediately; the WebSocket NEW_ALERT push also arrives.
-      fetchInitialData();
+      await fetchInitialData({ selectNewestClaim: true });
     } catch {
       toast.error(t("disaster_simulate_failed"));
     } finally {
@@ -573,6 +578,7 @@ export default function Dashboard() {
                   farms={farms}
                   claims={claims}
                   alerts={alerts}
+                  loading={isInitialLoading}
                   onNavigateClaims={(claimNo) => { setSelectedClaimNo(claimNo); handleTabChange("timeline"); }}
                 />
               )

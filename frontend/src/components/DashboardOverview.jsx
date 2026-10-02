@@ -229,7 +229,7 @@ function formatMoney(value) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(value || 0));
 }
 
-export default function DashboardOverview({ farms = [], alerts = [], claims = [], onNavigateClaims }) {
+export default function DashboardOverview({ farms = [], alerts = [], claims = [], onNavigateClaims, loading = false }) {
   const { t } = useTranslation();
 
   /* Derive headline metrics only from records returned by the backend. */
@@ -253,15 +253,15 @@ export default function DashboardOverview({ farms = [], alerts = [], claims = []
     const riskZones = riskZoneKeys.size;
 
     return {
-      policies: farms.length.toLocaleString(),
-      pipelineValue: formatMoney(totalPipeline),
-      claimStatusCounts: `${pendingClaims.length} PENDING · ${paidClaims.length} PAID`,
+      policies: loading ? '—' : farms.length.toLocaleString(),
+      pipelineValue: loading ? '—' : formatMoney(totalPipeline),
+      claimStatusCounts: loading ? '—' : `${pendingClaims.length} PENDING · ${paidClaims.length} PAID`,
       payoutTime: averagePayoutTime,
-      payoutTimeTrend: paidClaims.length ? '' : 'PENDING',
-      riskZones: String(riskZones),
-      riskTrend: riskZones > 0 ? t('risk_alerts_active') : t('risk_none_active'),
+      payoutTimeTrend: loading ? '—' : (paidClaims.length ? '' : 'PENDING'),
+      riskZones: loading ? '—' : String(riskZones),
+      riskTrend: loading ? '—' : (riskZones > 0 ? t('risk_alerts_active') : t('risk_none_active')),
     };
-  }, [farms, claims, alerts, t]);
+  }, [farms, claims, alerts, loading, t]);
 
   /* Build monthly chart from real claims when available */
   const monthlyData = useMemo(() => {

@@ -1,6 +1,12 @@
 import { ensureDemoSession } from './auth';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+// Local dev talks to Django on :8000. Production builds default to the same
+// origin, so a container/static deployment can never bake in an API host that
+// later disappears (the retired onrender.com deployment did exactly that).
+const DEFAULT_API_BASE_URL = import.meta.env.PROD
+  ? '/api'
+  : 'http://127.0.0.1:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL;
 
 function buildUrl(path) {
   if (/^https?:\/\//i.test(path)) {

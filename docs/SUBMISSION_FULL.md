@@ -180,12 +180,18 @@ See [`JUDGING_CRITERIA_MAPPING.md`](JUDGING_CRITERIA_MAPPING.md).
 
 ## 12. Demo and Repository
 
+- Live application: **https://agri-guard-api-live.vercel.app** (demo login `demo` / `demo123`, no setup required)
+- Live status: https://agri-guard-api-live.vercel.app/api/health/
 - Repository: [github.com/juangh123/agri_guard](https://github.com/juangh123/agri_guard)
-- Interactive demo: [`INTERACTIVE_DEMO.html`](INTERACTIVE_DEMO.html)
-- Demo video: [`AgriGuard_Demo_Final.mp4`](AgriGuard_Demo_Final.mp4) (rebuilt against the current honest-settlement UI)
-- Presentation: [`AgriGuard_Presentation_submission.pptx`](AgriGuard_Presentation_submission.pptx)
-- Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md)
-- Trigger code: [`TRIGGER_LOGIC_AND_CODE.md`](TRIGGER_LOGIC_AND_CODE.md)
+- Interactive demo: [docs/INTERACTIVE_DEMO.html](https://github.com/juangh123/agri_guard/blob/main/docs/INTERACTIVE_DEMO.html)
+- Demo video: [docs/AgriGuard_Demo_Final.mp4](https://github.com/juangh123/agri_guard/blob/main/docs/AgriGuard_Demo_Final.mp4) (rebuilt against the current honest-settlement UI)
+- Presentation: [docs/AgriGuard_Presentation_submission.pptx](https://github.com/juangh123/agri_guard/blob/main/docs/AgriGuard_Presentation_submission.pptx)
+- Architecture: [docs/ARCHITECTURE.md](https://github.com/juangh123/agri_guard/blob/main/docs/ARCHITECTURE.md)
+- Trigger code: [docs/TRIGGER_LOGIC_AND_CODE.md](https://github.com/juangh123/agri_guard/blob/main/docs/TRIGGER_LOGIC_AND_CODE.md)
+- Full checklist and copy-paste texts: [docs/CHECKLIST_FOR_SUBMISSION.md](https://github.com/juangh123/agri_guard/blob/main/docs/CHECKLIST_FOR_SUBMISSION.md)
+
+Everything in this document uses absolute links so it can be pasted into the
+DoraHacks BUIDL form without breaking the references.
 
 ## 13. Team
 

@@ -17,6 +17,13 @@
 - Live status: [https://agri-guard-api-live.vercel.app/api/health/](https://agri-guard-api-live.vercel.app/api/health/)
 - Real-time updates: REST + WebSocket (`/ws/alerts/`)
 
+That URL is the only supported judge entry point, and it serves both the SPA and
+the API from the same origin. Retired deployments must not be linked:
+`agri-guard-murex.vercel.app` still serves an old bundle that calls
+`agri-guard-jcko.onrender.com`, whose database is gone, so it renders an empty,
+unreachable demo. `scripts/verify_deployment.py` fails the build when a bundle
+points at a foreign API host or cannot build an absolute WebSocket URL.
+
 The Vercel deployment is the stable judge-facing entry point. Persistence is
 managed PostgreSQL + PostGIS when `DATABASE_URL` points at it (the current
 production database is hosted on Railway). If that database is missing or
@@ -513,6 +520,7 @@ agri_guard/
 | **Team** | Jason (juangh123) — solo builder |
 | **Demo Video** | [`docs/AgriGuard_Demo_Final.mp4`](docs/AgriGuard_Demo_Final.mp4) — rebuilt against the current honest-settlement UI |
 | **Presentation** | [`docs/AgriGuard_Presentation_submission.pptx`](docs/AgriGuard_Presentation_submission.pptx) |
+| **Submission window** | 2026-10-14 08:23 UTC → 2026-10-17 20:00 UTC (Beijing: 10-14 16:23 → 10-18 04:00) |
 | **Submission URL** | _Pending DoraHacks submission — update after the BUIDL is created_ |
 
 ---
