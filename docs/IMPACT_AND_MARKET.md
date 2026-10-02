@@ -13,7 +13,7 @@
 | **Claim Settlement Time** | 4–12 Weeks (human adjuster dispatch) | **Minutes** after verified data + settlement configuration | **>99% faster** |
 | **Claim Verification Cost** | $50–$200 per claim (field visit) | **Near $0 marginal cost** for routine PostGIS evaluation | **Up to 90% lower** |
 | **Fraud Rate** | 10–15% (subjective farmer reporting) | **Reduced** through GNSS boundary metadata and auditable claim evidence | **Design objective** |
-| **Payout Currency Risk** | Local currency (depreciation risk) | **USDC Stablecoin** (dollar-denominated, no inflation loss) | **Protected** |
+| **Payout Rail** | Local currency or cash | **Mobile money first** (M-Pesa / Flutterwave roadmap), with an optional stablecoin audit rail | **Practical + auditable** |
 | **Farmer Onboarding Reach** | Limited to large commercial farms | **Any farmer with SMS** (USSD 规划中) | **10x reach** |
 | **Premium Affordability** | $50–$200/year (unaffordable) | **~$25/year micro-premium** (90% cost reduction via automation) | **5–10x cheaper** |
 
@@ -37,26 +37,40 @@ TAM (Total Addressable Market)
 ├── Uninsured climate losses: $9.3B per year
 └── Current insurance penetration: < 3%
 
-SAM (Serviceable Addressable Market)
-├── 120 million farms across Sub-Saharan Africa + SE Asia
+SAM (Serviceable Addressable Market, Africa-first)
+├── 120 million farms across Sub-Saharan Africa
+├── Southeast Asia is a transferability option, not base SAM
 ├── Serviceable value: $2.4B per year
 └── Reachable via mobile money / SMS (USSD 规划中)
 
 SOM (Serviceable Obtainable Market — 3-Year Target)
 ├── Pilot 2 countries (Kenya, Nigeria): 12 million farms → $240M per year
 ├── Year-3 target penetration: 1% of SOM = 120,000 insured farmers
-├── Average micro-premium margin: $25 per policy per year
-└── Projected ARR: 120,000 × $25 = ~$3M
+├── Average gross premium: ~$25 per policy per year
+└── Projected GWP: 120,000 × $25 = ~$3M; platform revenue target: ~$0.9M–$1.2M ARR
 ```
 
 ### Revenue Model Breakdown
 
 | Revenue Stream | Unit Economics | Year 3 Projection |
 |:---|:---|:---|
-| **Micro-premium margin (B2C)** | $25/policy/year | 120,000 × $25 = **$3.0M** |
-| **Platform License (B2B)** | $10K–$50K/insurer/year | Upside (not counted in base ARR target) |
+| **Gross written premium (B2C)** | ~$25/policy/year | 120,000 × $25 = **$3.0M GWP** |
+| **Platform take rate + license (B2B2C)** | 30%–40% take rate; $10K–$50K/insurer/year | **~$0.9M–$1.2M ARR** |
 | **Settlement Fee** | $0.50 per processed payout | Upside (not counted in base ARR target) |
-| **Total ARR (base)** | — | **~$3M** |
+| **Total platform revenue (base)** | — | **~$0.9M–$1.2M ARR** |
+
+---
+
+## Basis-Risk Management
+
+Parametric insurance pays on a measurable index, so the central product risk is
+basis risk: the index can diverge from an individual farm's actual loss. The
+design response is:
+
+- multi-source verification (GNSS boundary plus EO, streamflow, or gauge data);
+- transparent thresholds, observation windows, and exclusions in the policy;
+- district-level calibration against historical loss and weather data;
+- a basis-risk reserve and an auditable manual-review window for edge cases.
 
 ---
 

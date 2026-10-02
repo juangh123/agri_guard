@@ -45,9 +45,9 @@ Reference: `docs/ARCHITECTURE.md`, `docs/TECH_STACK.md`, `frontend/src/utils/arc
 ## 5. Market Potential
 
 - TAM: 485 million smallholder livelihoods exposed to climate losses.
-- SAM: 120 million farms across Sub-Saharan Africa and Southeast Asia.
+- Africa-first SAM: 120 million farms across Sub-Saharan Africa; Southeast Asia is transferability upside.
 - SOM: 120,000 farmers in Year 3.
-- Projected base ARR: `~$3M`, plus platform licensing and payout transaction upside.
+- Projected `~$3M GWP` at ~$25 gross premium per farmer; platform revenue target `~$0.9M-$1.2M ARR` from a 30%-40% take rate plus insurer licensing.
 - Satellite downstream-service adoption is a core mechanism: each claim consumes GNSS/EO data and drives demand for spatial services.
 
 Reference: `docs/IMPACT_AND_MARKET.md`.
@@ -57,6 +57,7 @@ Reference: `docs/IMPACT_AND_MARKET.md`.
 - Claim settlement target: from 4-12 weeks to minutes once verified data feeds and settlement credentials are live.
 - Verification-cost target: materially below the $50-$200 manual field-visit benchmark for routine evaluations.
 - Fraud mitigation target: stronger through GNSS boundary metadata and deterministic SHA-256 evidence hashes.
+- Basis-risk mitigation: multi-source triggers, published thresholds, district-level calibration, a reserve, and an auditable review window.
 - SDG alignment: SDG 1, SDG 2, SDG 9, and SDG 13.
 
 Reference: `docs/IMPACT_AND_MARKET.md`, `docs/SUBMISSION_FULL.md`.

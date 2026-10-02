@@ -144,16 +144,32 @@ These figures are targets, not measured pilot results:
 | Claim cycle | 4-12 weeks | Minutes after verified data and configured settlement |
 | Routine verification cost | $50-$200 per claim | Materially lower through PostGIS automation |
 | Evidence integrity | Paper and subjective assessments | GNSS metadata plus deterministic evidence hash |
-| Currency exposure | Local-currency payout | Optional stablecoin settlement path |
+| Payout rail | Local currency or cash | Mobile-money-first roadmap; stablecoin is an optional audit/settlement rail |
 | Farmer reach | Large commercial farms | SMS-first access, with USSD on the roadmap |
 
 ### Market Thesis
 
 - **TAM context:** 485 million African livelihoods affected by land degradation or climate risk.
-- **SAM:** 120 million smallholder farms across Sub-Saharan Africa and Southeast Asia.
+- **Africa-first SAM:** 120 million smallholder farms across Sub-Saharan Africa. Southeast Asia is a transferability option, not part of the base SAM.
 - **SOM target:** 120,000 insured farmers by Year 3.
-- **Base revenue target:** ~$3M ARR from a $25 annual micro-premium margin.
-- **Additional upside:** insurer platform licensing and per-settlement fees.
+- **Gross written premium target:** 120,000 farmers x ~$25 annual premium = ~$3.0M GWP.
+- **Platform revenue target:** roughly $0.9M-$1.2M ARR from a 30%-40% platform take rate plus insurer licensing. GWP is not presented as AgriGuard revenue.
+- **Additional upside:** per-settlement fees and expansion into additional crops, hazards, and regions.
+
+### Basis-Risk Management
+
+Parametric insurance can pay when the index diverges from an individual farm's
+actual loss. The submission treats this as a first-class design risk, not a
+hidden assumption:
+
+- Require at least two independent signals (GNSS boundary plus EO or gauge data)
+  before a trigger is marked verified.
+- Publish the exact trigger thresholds, data sources, observation windows, and
+  exclusions in the policy so farmers can see why a payout did or did not fire.
+- Calibrate local thresholds against historical yield-loss and weather-station
+  data before scaling to a new district.
+- Hold a basis-risk reserve and provide an auditable manual-review window for
+  edge cases before live settlement is enabled.
 
 ## 10. Judging Criteria Evidence
 
@@ -176,6 +192,7 @@ See [`JUDGING_CRITERIA_MAPPING.md`](JUDGING_CRITERIA_MAPPING.md).
 - AI output is advisory and falls back to a deterministic template without an API key.
 - Real OpenAI, Twilio, and settlement calls require explicit `LIVE_*_ENABLED` gates in addition to credentials.
 - SMS failure does not block claim creation and falls back to mock mode for the demo.
+- Mobile money (for example M-Pesa or Flutterwave) is the intended first payout rail in African markets; the ERC-20 path is optional and gated.
 - Production deployment requires a private secret, explicit CORS origins, and replacement of demo credentials.
 
 ## 12. Demo and Repository
