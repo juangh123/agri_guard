@@ -9,8 +9,8 @@ This guide deploys the public judge-facing demo without requiring local setup.
 | Public URL | [https://agri-guard-api-live.vercel.app](https://agri-guard-api-live.vercel.app) |
 | Django API / WebSocket | Vercel container services, routed by `vercel.json` |
 | Frontend | Vercel container running the production Vite build behind Nginx |
-| Database | Railway PostgreSQL 16 with PostGIS |
-| Connection mode | Railway public TCP proxy with TLS negotiated by `psycopg2` |
+| Database | Vercel-managed Neon PostgreSQL with PostGIS |
+| Connection mode | Neon pooled connection string with TLS negotiated by `psycopg2` |
 
 The active backend logs `=== Persistent PostgreSQL database configured ===` and
 `No migrations to apply` after redeploys. A simulated claim was written, the
@@ -195,12 +195,24 @@ at a new PostgreSQL/PostGIS database:
 
 ### Managed PostGIS setup
 
-Railway's official `PostGIS` template provides a persistent volume and is the
-current production host. The Vercel entrypoint also accepts Supabase or another
-managed PostgreSQL provider.
+Vercel-managed Neon is the current production host. It is provisioned through
+the Vercel Marketplace on the free plan and connected to
+`agri-guard-api-live`; PostGIS must still be enabled explicitly. The Vercel
+entrypoint also accepts Supabase, Railway, or another managed PostgreSQL
+provider.
 
-1. Create a PostgreSQL/PostGIS service.
-2. Enable PostGIS:
+1. Provision Neon from the Vercel Marketplace:
+
+   ```bash
+   vercel integration add neon \
+     --plan free_v3 \
+     --name agri-guard-postgres \
+     --environment production \
+     --prefix NEON_
+   ```
+
+2. Copy the provider's pooled `NEON_DATABASE_URL` into the production
+   `DATABASE_URL`, then enable PostGIS:
 
 ```sql
 create extension if not exists postgis;
@@ -211,11 +223,14 @@ create extension if not exists postgis;
    URL, which it normalizes before migrations:
 
 ```dotenv
-# PostgreSQL/PostGIS on Railway
-DATABASE_URL=postgresql://postgres:<password>@<public-proxy-host>:<port>/railway
+# Vercel-managed Neon (use the value exported by the integration)
+DATABASE_URL=postgresql://<user>:<password>@<pooler-host>/neondb?sslmode=require
 
 # Supabase session pooler alternative
 DATABASE_URL=postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require
+
+# PostgreSQL/PostGIS on Railway
+DATABASE_URL=postgresql://postgres:<password>@<public-proxy-host>:<port>/railway
 ```
 
 4. Run `python manage.py migrate` and `python manage.py seed_demo_data`.

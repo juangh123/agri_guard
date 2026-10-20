@@ -26,7 +26,7 @@ points at a foreign API host or cannot build an absolute WebSocket URL.
 
 The Vercel deployment is the stable judge-facing entry point. Persistence is
 managed PostgreSQL + PostGIS when `DATABASE_URL` points at it (the current
-production database is hosted on Railway). If that database is missing or
+production database is Vercel-managed Neon). If that database is missing or
 unreachable the container falls back to a temporary SQLite file so the demo
 keeps serving; `/api/health/` reports the live mode and the dashboard shows a
 banner whenever the fallback is in use, so no reviewer has to guess whether the
