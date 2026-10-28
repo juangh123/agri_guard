@@ -225,6 +225,13 @@ function AnomalyChart({ data, thresholdLabel, anomalyLabel }) {
   );
 }
 
+function formatDuration(seconds) {
+  if (seconds < 1) return '< 1 s';
+  if (seconds < 60) return `${Math.round(seconds)} s`;
+  if (seconds < 3600) return `${(seconds / 60).toFixed(1)} min`;
+  return `${(seconds / 3600).toFixed(1)} h`;
+}
+
 function formatMoney(value) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(value || 0));
 }
@@ -245,6 +252,21 @@ export default function DashboardOverview({ farms = [], alerts = [], claims = []
     const averagePayoutTime = paidDurations.length
       ? `${(paidDurations.reduce((sum, hours) => sum + hours, 0) / paidDurations.length).toFixed(1)}h`
       : '—';
+    // Until a settlement completes, report what the pipeline has actually recorded:
+    // the time from hazard detection to the filed claim, read from claim timelines.
+    const filingSeconds = claims
+      .map((c) => {
+        const steps = Array.isArray(c.timeline) ? c.timeline : [];
+        const detected = steps.find((s) => String(s.status).toUpperCase() === 'DETECTED');
+        const triggered = steps.find((s) => String(s.status).toUpperCase() === 'TRIGGERED');
+        if (!detected || !triggered) return NaN;
+        return (new Date(triggered.created_at).getTime() - new Date(detected.created_at).getTime()) / 1000;
+      })
+      .filter((seconds) => Number.isFinite(seconds) && seconds >= 0)
+      .sort((a, b) => a - b);
+    const medianFiling = filingSeconds.length
+      ? filingSeconds[Math.floor(filingSeconds.length / 2)]
+      : null;
     const riskZoneKeys = new Set(
       alerts
         .filter((a) => DANGER_STATUSES.includes(String(a.status || '').toUpperCase()))
@@ -256,8 +278,10 @@ export default function DashboardOverview({ farms = [], alerts = [], claims = []
       policies: loading ? '—' : farms.length.toLocaleString(),
       pipelineValue: loading ? '—' : formatMoney(totalPipeline),
       claimStatusCounts: loading ? '—' : `${pendingClaims.length} PENDING · ${paidClaims.length} PAID`,
-      payoutTime: averagePayoutTime,
-      payoutTimeTrend: loading ? '—' : (paidClaims.length ? '' : 'PENDING'),
+      payoutTitle: paidClaims.length || medianFiling === null ? t('avg_payout_time') : t('kpi_detection_to_claim'),
+      payoutTime: loading ? '—' : (paidClaims.length || medianFiling === null ? averagePayoutTime : formatDuration(medianFiling)),
+      payoutTimeTrend: loading ? '—' : (paidClaims.length ? '' : (medianFiling === null ? 'PENDING' : t('kpi_settlement_pending'))),
+      payoutStatus: paidClaims.length ? 'good' : (medianFiling !== null ? 'info' : 'warning'),
       riskZones: loading ? '—' : String(riskZones),
       riskTrend: loading ? '—' : (riskZones > 0 ? t('risk_alerts_active') : t('risk_none_active')),
     };
@@ -269,14 +293,20 @@ export default function DashboardOverview({ farms = [], alerts = [], claims = []
     const buckets = {};
     claims.forEach((c) => {
       const d = new Date(c.triggered_at || c.created_at || Date.now());
-      const key = d.toLocaleString('en-US', { month: 'short' });
-      if (!buckets[key]) buckets[key] = { month: key, claims: 0, payout: 0 };
+      if (Number.isNaN(d.getTime())) return;
+      // Key by year and month so buckets sort chronologically and never merge years.
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!buckets[key]) {
+        buckets[key] = { key, month: d.toLocaleString('en-US', { month: 'short' }), claims: 0, payout: 0 };
+      }
       buckets[key].claims += 1;
       if (String(c.status || '').toUpperCase() === 'PAID') {
         buckets[key].payout += Number(c.payout_amount || 0) / 1000;
       }
     });
-    return Object.values(buckets).slice(-6);
+    return Object.values(buckets)
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .slice(-6);
   }, [claims]);
 
   const recentClaims = useMemo(() => {
@@ -315,10 +345,10 @@ export default function DashboardOverview({ farms = [], alerts = [], claims = []
           icon={<FileCheck className="h-6 w-6" />}
         />
         <MetricCard
-          title={t('avg_payout_time')}
+          title={metrics.payoutTitle}
           value={metrics.payoutTime}
           trend={metrics.payoutTimeTrend}
-          status={metrics.payoutTimeTrend ? 'warning' : 'good'}
+          status={metrics.payoutStatus}
           icon={<Clock className="h-6 w-6" />}
         />
         <MetricCard

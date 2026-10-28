@@ -8,9 +8,9 @@ place.
 
 | Item | Time |
 |:---|:---|
-| Pre-registration opens | 2026-10-10 10:00 UTC / 18:00 Beijing |
-| Submission window opens | 2026-10-14 08:23 UTC / 16:23 Beijing |
-| Submission deadline | 2026-10-17 20:00 UTC / 2026-10-18 04:00 Beijing |
+| Pre-registration opens | 2026-11-10 10:00 UTC / 18:00 Beijing |
+| Submission window opens | 2026-11-14 08:23 UTC / 16:23 Beijing |
+| Submission deadline | 2026-11-17 20:00 UTC / 2026-11-18 04:00 Beijing |
 
 Register for the hackathon before attempting to create the BUIDL. The page
 states that eligibility for submissions, bounties, and prizes requires

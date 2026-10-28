@@ -15,6 +15,8 @@ AgriGuard is a working MVP. This submission separates implemented capability fro
 | Capability | Status |
 |:---|:---|
 | GNSS/WGS84 farm polygons and optional device/accuracy/timestamp metadata | Implemented |
+| GNSS boundary evidence on the map (area, vertices, accuracy, capture date, datum, receiver) and device-reported accuracy on self-registration | Implemented |
+| Demo claims reproducible by the published rule engine (payout and SHA-256 evidence hash) | Implemented and tested |
 | PostGIS farm-by-hazard intersection | Implemented |
 | Crop-specific flood, drought, wildfire, and heatwave rules | Implemented |
 | NASA EONET event-footprint ingestion | Implemented with a six-hour Celery Beat schedule in the Docker worker stack; the Vercel API container does not host the scheduler |
@@ -27,6 +29,8 @@ AgriGuard is a working MVP. This submission separates implemented capability fro
 | Raw NMEA/RINEX trace storage | Roadmap; the MVP stores the resulting WGS84 polygon and GNSS metadata |
 
 AgriGuard never fabricates a blockchain transaction hash. If Web3 credentials or a farmer wallet are unavailable, the claim remains `PENDING`.
+
+The public demo farms are 1-3 ha plots in Kitale (Trans Nzoia), Njoro (Nakuru) and Uasin Gishu whose boundaries follow real field edges in Esri World Imagery. Their GNSS capture metadata is a labeled simulation (`demo-sim` receiver id, *Demo record* badge); see [GNSS Data Capture and Evidence](https://github.com/juangh123/agri_guard/blob/main/docs/GNSS_DATA_CAPTURE_AND_EVIDENCE.md).
 
 ## 2. Problem
 
@@ -113,8 +117,19 @@ Payouts use insured farm area capped at five hectares, severity, and confidence.
 - Claim evidence binds farm ID, event ID, event time, confidence, and GNSS metadata into a SHA-256 hash.
 - PostGIS `ST_Intersects` performs the spatial test.
 - Raw NMEA/RINEX upload and on-chain policy metadata are roadmap items.
+- The Live Map shows a GNSS boundary evidence card (area, vertices, horizontal accuracy, capture date, datum, receiver); self-registration stores the device-reported fix accuracy and time.
 
-See [`GNSS_DATA_CAPTURE_AND_EVIDENCE.md`](GNSS_DATA_CAPTURE_AND_EVIDENCE.md).
+### GNSS service roadmap for Africa
+
+Parametric insurance is only as fair as the farm boundary it pays against, so boundary quality is a product feature, not a detail:
+
+- **SBAS corrections.** Receivers that apply SBAS corrections (EGNOS where it is available, and the African SBAS that the SATNAV Africa programme supports as it comes online) produce tighter boundaries. AgriGuard already stores per-capture horizontal accuracy, so an insurer can require a minimum accuracy before a policy is bound.
+- **Galileo High Accuracy Service (HAS).** Free decimetre-level corrections would let a field officer separate neighbouring 0.5 ha plots, which is the scale of many smallholdings.
+- **Galileo OSNMA.** Authenticated navigation messages let the capture app flag spoofed fixes. Adding the authentication flag to the evidence hash closes the most obvious fraud path for location-based insurance.
+
+These are roadmap integrations. The MVP accepts any WGS84 capture and records its metadata honestly.
+
+See [GNSS Data Capture and Evidence](https://github.com/juangh123/agri_guard/blob/main/docs/GNSS_DATA_CAPTURE_AND_EVIDENCE.md).
 
 ## 8. Settlement Boundary
 
@@ -182,7 +197,7 @@ hidden assumption:
 | Market potential | Large underserved market, clear insurer distribution path, measurable downstream GNSS/EO demand |
 | Impact | Targets faster liquidity, lower verification cost, and auditable evidence |
 
-See [`JUDGING_CRITERIA_MAPPING.md`](JUDGING_CRITERIA_MAPPING.md).
+See [Judging Criteria Mapping](https://github.com/juangh123/agri_guard/blob/main/docs/JUDGING_CRITERIA_MAPPING.md).
 
 ## 11. Responsible Technology
 

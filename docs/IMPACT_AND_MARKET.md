@@ -45,7 +45,7 @@ SAM (Serviceable Addressable Market, Africa-first)
 
 SOM (Serviceable Obtainable Market — 3-Year Target)
 ├── Pilot 2 countries (Kenya, Nigeria): 12 million farms → $240M per year
-├── Year-3 target penetration: 1% of SOM = 120,000 insured farmers
+├── Year-3 target penetration: 1% of pilot-country farms = 120,000 insured farmers
 ├── Average gross premium: ~$25 per policy per year
 └── Projected GWP: 120,000 × $25 = ~$3M; platform revenue target: ~$0.9M–$1.2M ARR
 ```

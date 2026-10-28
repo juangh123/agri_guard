@@ -14,6 +14,23 @@ from core.services.llm_service import ask_agri_guard_ai
 from core.services.blockchain_service import BlockchainService, BlockchainTransactionError, BlockchainConfigError
 from decimal import Decimal
 
+
+def compute_evidence_hash(farm, event, confidence_pct):
+    """SHA-256 that binds a claim to its farm, event, confidence and GNSS metadata.
+
+    Shared by the live pipeline and the demo seed so both produce hashes that an
+    auditor can recompute from the same published fields.
+    """
+    gnss_evidence = "|".join([
+        str(farm.id),
+        farm.gnss_device_id or "unset",
+        str(farm.gnss_accuracy_m) if farm.gnss_accuracy_m is not None else "unset",
+        farm.gnss_captured_at.isoformat() if farm.gnss_captured_at else "unset",
+    ])
+    evidence_data = f"{farm.id}-{event.id}-{event.start_date.isoformat()}-{confidence_pct}-{gnss_evidence}"
+    return hashlib.sha256(evidence_data.encode()).hexdigest()
+
+
 @shared_task
 def send_sms_alert(phone_number, message):
     """
@@ -184,14 +201,7 @@ def process_disaster_event(self, event_id, is_simulation=False):
                 payment_succeeded = False
                 
                 # Generate evidence hash before creating the claim.
-                gnss_evidence = "|".join([
-                    str(farm.id),
-                    farm.gnss_device_id or "unset",
-                    str(farm.gnss_accuracy_m) if farm.gnss_accuracy_m is not None else "unset",
-                    farm.gnss_captured_at.isoformat() if farm.gnss_captured_at else "unset",
-                ])
-                evidence_data = f"{farm.id}-{event.id}-{event.start_date.isoformat()}-{confidence_pct}-{gnss_evidence}"
-                evidence_hash = hashlib.sha256(evidence_data.encode()).hexdigest()
+                evidence_hash = compute_evidence_hash(farm, event, confidence_pct)
 
                 # Create the claim first so the smart-contract call can use the real claim id.
                 claim = Claim.objects.create(

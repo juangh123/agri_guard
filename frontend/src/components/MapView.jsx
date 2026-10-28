@@ -14,7 +14,8 @@ import {
   Pause,
   RotateCcw,
   Calendar,
-  Sparkles
+  Sparkles,
+  Satellite
 } from "lucide-react";
 import { OPEN_MAP_STYLE, SATELLITE_MAP_STYLE } from "../utils/mapStyles";
 import {
@@ -68,6 +69,47 @@ function collectionBounds(featureCollection) {
     if (g?.type === "Point") visit([g.coordinates]);
   });
   return Number.isFinite(west) ? [west, south, east, north] : null;
+}
+
+/* Outer ring of a Polygon / first polygon of a MultiPolygon, or null */
+function outerRing(feature) {
+  const g = feature?.geometry;
+  if (g?.type === "Polygon") return g.coordinates?.[0] || null;
+  if (g?.type === "MultiPolygon") return g.coordinates?.[0]?.[0] || null;
+  return null;
+}
+
+/* Planar area on a local equirectangular projection; accurate for field-sized polygons */
+function ringAreaHectares(ring) {
+  if (!ring || ring.length < 4) return null;
+  const R = 6371008.8;
+  const lat0 = (ring.reduce((sum, p) => sum + p[1], 0) / ring.length) * (Math.PI / 180);
+  const pts = ring.map(([lon, lat]) => [
+    (lon * Math.PI / 180) * R * Math.cos(lat0),
+    (lat * Math.PI / 180) * R,
+  ]);
+  let twice = 0;
+  for (let i = 0; i < pts.length - 1; i += 1) {
+    twice += pts[i][0] * pts[i + 1][1] - pts[i + 1][0] * pts[i][1];
+  }
+  return Math.abs(twice) / 2 / 10000;
+}
+
+function gnssEvidence(feature) {
+  const ring = outerRing(feature);
+  if (!ring) return null;
+  const props = feature?.properties || {};
+  const closed = ring.length > 1 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1];
+  const center = featureCenter(feature);
+  return {
+    areaHa: ringAreaHectares(ring),
+    vertices: closed ? ring.length - 1 : ring.length,
+    accuracy: props.gnss_accuracy_m,
+    device: props.gnss_device_id || "",
+    capturedAt: props.gnss_captured_at || null,
+    center,
+    isDemo: String(props.gnss_device_id || "").startsWith("demo-sim"),
+  };
 }
 
 function fallbackFarmFeature(defaultName) {
@@ -278,6 +320,7 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
 
   const primaryFeature = useMemo(() => farmData.features[0], [farmData]);
   const primaryFarmName = primaryFeature?.properties?.name || t("farmer_default_farm_name");
+  const evidence = useMemo(() => gnssEvidence(primaryFeature), [primaryFeature]);
   const hotspotCoordinates = useMemo(
     () => featureCenter(primaryFeature) || [37.9, 0.02],
     [primaryFeature]
@@ -295,7 +338,8 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
     if (mapReady && map) {
       map.fitBounds(
         [[bounds[0], bounds[1]], [bounds[2], bounds[3]]],
-        { padding: 90, maxZoom: 13, duration: 800 }
+        // Smallholder plots are 1-3 ha; zoom close enough to see the field edges.
+        { padding: 90, maxZoom: 16.5, duration: 800 }
       );
     } else {
       const center = [(bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2];
@@ -447,6 +491,53 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
           })}
         </div>
       </div>
+
+      {/* GNSS boundary evidence for the highlighted farm */}
+      {farms.length > 0 && evidence && (
+        <div className="hidden md:block absolute top-4 left-20 z-10 glass-panel rounded-xl px-3.5 py-3 shadow-lg border border-border/40 bg-card/90 backdrop-blur-md w-[260px]">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+              <Satellite className="h-3.5 w-3.5 text-primary" />
+              {t("gnss_card_title")}
+            </div>
+            {evidence.isDemo && (
+              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-600">
+                {t("gnss_demo_badge")}
+              </span>
+            )}
+          </div>
+          <div className="text-[11px] font-semibold text-foreground mb-1.5">{primaryFarmName}</div>
+          <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-[11px]">
+            <dt className="text-muted-foreground">{t("gnss_area")}</dt>
+            <dd className="text-foreground font-mono text-right">
+              {evidence.areaHa !== null ? `${evidence.areaHa.toFixed(2)} ha` : t("gnss_unset")}
+            </dd>
+            <dt className="text-muted-foreground">{t("gnss_vertices")}</dt>
+            <dd className="text-foreground font-mono text-right">{evidence.vertices}</dd>
+            <dt className="text-muted-foreground">{t("gnss_accuracy")}</dt>
+            <dd className="text-foreground font-mono text-right">
+              {evidence.accuracy !== null && evidence.accuracy !== undefined ? `±${Number(evidence.accuracy).toFixed(1)} m` : t("gnss_unset")}
+            </dd>
+            <dt className="text-muted-foreground">{t("gnss_captured")}</dt>
+            <dd className="text-foreground font-mono text-right">
+              {evidence.capturedAt ? String(evidence.capturedAt).slice(0, 10) : t("gnss_unset")}
+            </dd>
+            <dt className="text-muted-foreground">{t("gnss_datum")}</dt>
+            <dd className="text-foreground font-mono text-right">WGS84 · EPSG:4326</dd>
+            {evidence.center && (
+              <>
+                <dt className="text-muted-foreground">{t("gnss_centroid")}</dt>
+                <dd className="text-foreground font-mono text-right">
+                  {evidence.center[1].toFixed(5)}, {evidence.center[0].toFixed(5)}
+                </dd>
+              </>
+            )}
+          </dl>
+          <div className="mt-2 text-[10px] leading-snug text-muted-foreground break-words" title={evidence.device}>
+            {t("gnss_receiver")}: {evidence.device || t("gnss_unset")}
+          </div>
+        </div>
+      )}
 
       {/* Disaster Trigger Simulation */}
       {onSimulateDisaster && (

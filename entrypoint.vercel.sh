@@ -169,7 +169,11 @@ export AGRIGUARD_STARTED_AT="${STARTED_AT}"
 emit_startup_event
 
 echo "=== Seeding demo data ==="
-python manage.py seed_demo_data
+# A seed failure must not take the judge demo down (set -e is active). The seed
+# runs in one transaction, so a failure leaves the existing demo rows intact.
+if ! python manage.py seed_demo_data; then
+  echo "!!! Demo seed failed; serving the existing demo data."
+fi
 
 PORT="${PORT:-80}"
 echo "=== Starting Daphne server on port ${PORT} ==="

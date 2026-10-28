@@ -257,14 +257,116 @@ class SeedDemoDataContentTests(TestCase):
         self.assertEqual(Farm.objects.count(), 3)
         self.assertEqual(DisasterEvent.objects.count(), 4)
         self.assertEqual(Claim.objects.count(), 9)
-        self.assertEqual(ClaimTimeline.objects.count(), 36)
+        self.assertEqual(ClaimTimeline.objects.count(), 45)
 
         pipeline = sum(
             (amount or Decimal('0')) for amount in Claim.objects.values_list('payout_amount', flat=True)
         )
-        self.assertEqual(pipeline, Decimal('3490.00'))
+        self.assertEqual(pipeline, Decimal('944.23'))
         self.assertFalse(Claim.objects.exclude(status='PENDING').exists())
         self.assertFalse(Claim.objects.filter(tx_hash__isnull=False).exists())
+
+    def test_demo_farms_are_smallholder_plots_with_gnss_metadata(self):
+        for farm in Farm.objects.all():
+            hectares = farm.geofence.transform(3857, clone=True).area / 10000
+            # Smallholder-sized, inside the engine's 0.5-5 ha insured-area guardrail.
+            self.assertGreaterEqual(hectares, 0.5, farm.name)
+            self.assertLessEqual(hectares, 5.0, farm.name)
+            self.assertTrue(farm.gnss_device_id.startswith('demo-sim'), farm.name)
+            self.assertIsNotNone(farm.gnss_accuracy_m)
+            self.assertLess(farm.gnss_accuracy_m, 5.0)
+            self.assertIsNotNone(farm.gnss_captured_at)
+
+    def test_every_demo_claim_is_reproducible_by_the_rule_engine(self):
+        from .tasks import compute_evidence_hash
+
+        engine = ParametricClaimEngine()
+        for claim in Claim.objects.select_related('farm', 'alert__event'):
+            event = claim.alert.event
+            self.assertTrue(claim.farm.geofence.intersects(event.affected_area), claim.claim_no)
+            trigger = engine.evaluate_farm_status(claim.farm, event)
+            self.assertTrue(trigger['claim_triggered'], claim.claim_no)
+            expected = Decimal(engine.calculate_payout(claim.farm, event, trigger)).quantize(Decimal('0.01'))
+            self.assertEqual(claim.payout_amount, expected, claim.claim_no)
+            confidence_pct = trigger['confidence_score'] * 100
+            self.assertEqual(claim.alert.confidence, Decimal(str(confidence_pct)))
+            self.assertEqual(
+                claim.evidence_hash,
+                compute_evidence_hash(claim.farm, event, confidence_pct),
+                claim.claim_no,
+            )
+
+    def test_demo_timelines_are_labeled_ordered_and_pending(self):
+        for claim in Claim.objects.all():
+            steps = list(claim.timeline.all())
+            self.assertEqual(
+                [step.status for step in steps],
+                ['DETECTED', 'VERIFIED', 'TRIGGERED', 'NOTIFIED', 'PENDING'],
+            )
+            self.assertTrue(steps[0].detail.startswith('[SIMULATED]'))
+            self.assertIn('not claim-grade', steps[1].detail)
+            self.assertIn(f'${claim.payout_amount}', steps[2].detail)
+            self.assertIn('no TxHash', steps[-1].detail)
+            stamps = [step.created_at for step in steps]
+            self.assertEqual(stamps, sorted(stamps))
+            self.assertLess(stamps[0], stamps[-1])
+            self.assertEqual(stamps[0], claim.triggered_at)
+
+    def test_reseeding_repairs_farms_and_timelines_from_older_seeds(self):
+        legacy_square = Polygon(
+            ((36.80, -1.30), (36.80, -1.20), (36.90, -1.20), (36.90, -1.30), (36.80, -1.30)),
+            srid=4326,
+        )
+        Farm.objects.filter(name='Mwangi Farm').update(
+            geofence=legacy_square, gnss_device_id='', gnss_accuracy_m=None, gnss_captured_at=None,
+        )
+        ClaimTimeline.objects.filter(status='NOTIFIED').delete()
+        ClaimTimeline.objects.filter(status='VERIFIED').update(
+            detail='GNSS boundary, VIIRS thermal and GEOGLOWS water signals cross-checked.'
+        )
+
+        call_command('seed_demo_data', verbosity=0)
+
+        farm = Farm.objects.get(name='Mwangi Farm')
+        self.assertLess(farm.geofence.transform(3857, clone=True).area / 10000, 5.0)
+        self.assertTrue(farm.gnss_device_id.startswith('demo-sim'))
+        self.assertEqual(ClaimTimeline.objects.count(), 45)
+        self.assertFalse(ClaimTimeline.objects.filter(detail__contains='VIIRS thermal and GEOGLOWS').exists())
+
+    def test_a_failed_reseed_rolls_back_every_repair(self):
+        legacy_square = Polygon(
+            ((36.80, -1.30), (36.80, -1.20), (36.90, -1.20), (36.90, -1.30), (36.80, -1.30)),
+            srid=4326,
+        )
+        Farm.objects.filter(name='Mwangi Farm').update(geofence=legacy_square, gnss_device_id='')
+        not_triggered = {
+            'alert_needed': False, 'claim_triggered': False, 'confidence_score': 0.0,
+            'disaster_type': 'FLOOD', 'reason': 'forced failure',
+        }
+        with mock.patch.object(ParametricClaimEngine, 'evaluate_farm_status', return_value=not_triggered):
+            with self.assertRaises(RuntimeError):
+                call_command('seed_demo_data', verbosity=0)
+
+        farm = Farm.objects.get(name='Mwangi Farm')
+        self.assertEqual(farm.gnss_device_id, '')
+        self.assertTrue(farm.geofence.equals_exact(legacy_square, tolerance=1e-9))
+
+    def test_reseeding_never_touches_a_user_farm_with_a_demo_name(self):
+        someone = User.objects.create_user(username='judge', password='pw-123456')
+        user_square = Polygon(
+            ((36.0, -1.0), (36.0, -0.99), (36.01, -0.99), (36.01, -1.0), (36.0, -1.0)),
+            srid=4326,
+        )
+        user_farm = Farm.objects.create(
+            owner=someone, name='Mwangi Farm', crop_type='maize',
+            phone_number='+254700009999', geofence=user_square,
+        )
+
+        call_command('seed_demo_data', verbosity=0)
+
+        user_farm.refresh_from_db()
+        self.assertTrue(user_farm.geofence.equals_exact(user_square, tolerance=1e-9))
+        self.assertEqual(user_farm.gnss_device_id, '')
 
     def test_only_three_hazards_count_as_active(self):
         active = RiskAlert.objects.filter(status__in=['DISASTER', 'WARNING'])
@@ -288,7 +390,7 @@ class SeedDemoDataContentTests(TestCase):
         self.assertEqual(Farm.objects.count(), 3)
         self.assertEqual(DisasterEvent.objects.count(), 4)
         self.assertEqual(Claim.objects.count(), 9)
-        self.assertEqual(ClaimTimeline.objects.count(), 36)
+        self.assertEqual(ClaimTimeline.objects.count(), 45)
 
 
 class FarmApiPermissionTests(TestCase):

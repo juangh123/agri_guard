@@ -30,6 +30,9 @@ const Register = () => {
           setLocation({
             longitude: position.coords.longitude,
             latitude: position.coords.latitude,
+            // Keep the fix quality so the farm record carries real GNSS metadata.
+            accuracy: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null,
+            capturedAt: new Date(position.timestamp || Date.now()).toISOString(),
           });
           setLoadingLoc(false);
         },
@@ -84,7 +87,10 @@ const Register = () => {
         password: form.password,
         farm_name: form.name.trim(),
         phone_number: form.phone_number.trim(),
-        geometry
+        geometry,
+        gnss_device_id: 'browser-geolocation (enableHighAccuracy)',
+        gnss_accuracy_m: location.accuracy,
+        gnss_captured_at: location.capturedAt,
       }, { auth: false });
 
       localStorage.setItem('access_token', response.data.access);
@@ -212,7 +218,12 @@ const Register = () => {
               {location ? (
                 <div className="flex items-center gap-2.5 p-3.5 bg-primary/10 text-primary border border-primary/30 rounded-xl text-sm font-bold">
                   <CheckCircle2 className="h-6 w-6 shrink-0" />
-                  <span className="font-mono">{location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}</span>
+                  <span className="font-mono">{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span>
+                  {location.accuracy !== null && (
+                    <span className="ms-auto font-mono text-xs font-semibold opacity-80">
+                      {t('gnss_fix_accuracy', { accuracy: location.accuracy.toFixed(1) })}
+                    </span>
+                  )}
                 </div>
               ) : (
                 <button
