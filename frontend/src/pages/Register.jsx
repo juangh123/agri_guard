@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { ShieldAlert, MapPin, Send, CheckCircle2, User, Phone, ArrowLeft, Shield, Lock, Sprout } from 'lucide-react';
+import { ShieldAlert, Send, User, Phone, ArrowLeft, Shield, Lock, Sprout } from 'lucide-react';
 import { useTranslation } from '../i18n/config';
 import LanguageSwitcher from '../components/LanguageSwitcher';
+import BoundaryCapture from '../components/BoundaryCapture';
 import { useNavigate } from '../utils/router';
 import { Link } from '../utils/router.jsx';
 import toast from 'react-hot-toast';
@@ -16,43 +17,15 @@ const Register = () => {
     username: '',
     password: '',
   });
-  const [location, setLocation] = useState(null);
-  const [loadingLoc, setLoadingLoc] = useState(false);
+  // Boundary from <BoundaryCapture>: null until the farmer has a usable one.
+  const [capture, setCapture] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const handleGetLocation = () => {
-    setLoadingLoc(true);
-    setError('');
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocation({
-            longitude: position.coords.longitude,
-            latitude: position.coords.latitude,
-            // Keep the fix quality so the farm record carries real GNSS metadata.
-            accuracy: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null,
-            capturedAt: new Date(position.timestamp || Date.now()).toISOString(),
-          });
-          setLoadingLoc(false);
-        },
-        (err) => {
-          console.error(err);
-          setError(t('error_gps_fail'));
-          setLoadingLoc(false);
-        },
-        { enableHighAccuracy: true, timeout: 15000 }
-      );
-    } else {
-      setError(t('error_gps_unsupported'));
-      setLoadingLoc(false);
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!location) {
-      setError(t('error_gps_req'));
+    if (!capture) {
+      setError(t('boundary_required'));
       return;
     }
     if (!form.username.trim() || !form.password) {
@@ -64,33 +37,15 @@ const Register = () => {
     setError('');
 
     try {
-      // Backend Farmer.geofence is a PolygonField: convert the selected GPS Point into
-      // a ~50m x 50m square Polygon with a simple degree approximation.
-      const HALF_SIDE_M = 25;
-      const latDelta = HALF_SIDE_M / 111320;
-      const lngDelta = HALF_SIDE_M / (111320 * Math.cos((location.latitude * Math.PI) / 180));
-      const { longitude: lng, latitude: lat } = location;
-
-      const geometry = {
-        type: 'Polygon',
-        coordinates: [[
-          [lng - lngDelta, lat - latDelta],
-          [lng + lngDelta, lat - latDelta],
-          [lng + lngDelta, lat + latDelta],
-          [lng - lngDelta, lat + latDelta],
-          [lng - lngDelta, lat - latDelta]
-        ]]
-      };
-
       const response = await api.post('/auth/register/', {
         username: form.username.trim(),
         password: form.password,
         farm_name: form.name.trim(),
         phone_number: form.phone_number.trim(),
-        geometry,
-        gnss_device_id: 'browser-geolocation (enableHighAccuracy)',
-        gnss_accuracy_m: location.accuracy,
-        gnss_captured_at: location.capturedAt,
+        geometry: capture.geometry,
+        gnss_device_id: capture.device,
+        gnss_accuracy_m: capture.accuracy,
+        gnss_captured_at: capture.capturedAt,
       }, { auth: false });
 
       localStorage.setItem('access_token', response.data.access);
@@ -213,29 +168,7 @@ const Register = () => {
                 <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-[11px] font-extrabold">3</span>
                 {t('location_label')}
               </div>
-              <p className="text-xs text-muted-foreground mb-3 leading-relaxed">{t('location_hint')}</p>
-
-              {location ? (
-                <div className="flex items-center gap-2.5 p-3.5 bg-primary/10 text-primary border border-primary/30 rounded-xl text-sm font-bold">
-                  <CheckCircle2 className="h-6 w-6 shrink-0" />
-                  <span className="font-mono">{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span>
-                  {location.accuracy !== null && (
-                    <span className="ms-auto font-mono text-xs font-semibold opacity-80">
-                      {t('gnss_fix_accuracy', { accuracy: location.accuracy.toFixed(1) })}
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleGetLocation}
-                  disabled={loadingLoc}
-                  className="w-full flex items-center justify-center gap-2 py-4 px-4 border-2 border-dashed border-primary/50 text-primary rounded-xl hover:bg-primary/5 hover:border-primary transition-all text-base font-extrabold disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <MapPin className={`h-6 w-6 ${loadingLoc ? 'animate-bounce' : ''}`} />
-                  {loadingLoc ? t('acquiring_loc') : t('get_location')}
-                </button>
-              )}
+              <BoundaryCapture onChange={setCapture} />
             </div>
 
             {/* Step 4: login credentials */}
@@ -286,7 +219,7 @@ const Register = () => {
 
             <button
               type="submit"
-              disabled={submitting || !location}
+              disabled={submitting || !capture}
               className="w-full flex justify-center items-center gap-2 py-4 px-4 border border-transparent rounded-xl shadow-md text-base font-extrabold text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed group"
             >
               {submitting ? (

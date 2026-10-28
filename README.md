@@ -18,10 +18,11 @@
 - Real-time updates: REST + WebSocket (`/ws/alerts/`)
 
 That URL is the only supported judge entry point, and it serves both the SPA and
-the API from the same origin. Retired deployments must not be linked:
-`agri-guard-murex.vercel.app` still serves an old bundle that calls
-`agri-guard-jcko.onrender.com`, whose database is gone, so it renders an empty,
-unreachable demo. `scripts/verify_deployment.py` fails the build when a bundle
+the API from the same origin. Retired deployments must not be linked: the
+legacy Vercel project behind `agri-guard-murex.vercel.app` (an old bundle that
+called the defunct `agri-guard-jcko.onrender.com` backend) was deleted on
+2026-10-28, so that hostname no longer serves AgriGuard.
+`scripts/verify_deployment.py` fails the build when a bundle
 points at a foreign API host or cannot build an absolute WebSocket URL.
 
 The Vercel deployment is the stable judge-facing entry point. Persistence is
