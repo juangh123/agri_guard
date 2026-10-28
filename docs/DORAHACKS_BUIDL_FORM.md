@@ -26,7 +26,7 @@ registration.
 | Repository | https://github.com/juangh123/agri_guard |
 | Live demo | https://agri-guard-api-live.vercel.app |
 | Demo login | `demo` / `demo123` |
-| Video | Add the final YouTube unlisted or Loom URL after re-recording |
+| Video | `docs/AgriGuard_Demo_Final.mp4` (re-recorded 2026-10-28 on the live URL); optionally upload as YouTube unlisted / Loom |
 | Cover image | `docs/screenshots/09_overview_pipeline.png` |
 | Gallery order | `09_overview_pipeline.png`, `10_live_map.png`, `11_claims_pending.png`, `12_reports_pipeline.png`, `13_sms_alerts.png`, `14_mobile_map.png` |
 | License | MIT |
@@ -100,6 +100,6 @@ Ask these through DoraHacks before the submission window:
 - [ ] Select Challenge II - Synergizing Agriculture and Geomatics.
 - [ ] Paste the short and full descriptions.
 - [ ] Upload the cover image and the six screenshots in order.
-- [ ] Re-record the demo video against the canonical live URL and upload it.
+- [x] Re-record the demo video against the canonical live URL (done 2026-10-28); upload it with the BUIDL.
 - [ ] Run `python scripts/verify_deployment.py` and confirm 15/15 PASS.
 - [ ] Save the BUIDL URL and update the README `Submission URL` field.

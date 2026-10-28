@@ -35,7 +35,7 @@
 | **License** | MIT License | 开源协议 |
 | **Repository URL** | https://github.com/juangh123/agri_guard | 代码仓库 |
 | **Demo URL** | https://agri-guard-api-live.vercel.app （`demo` / `demo123`） | 规范评委入口，前后端同源 |
-| **Video** | `docs/AgriGuard_Demo_Final.mp4`（仓库内） | 121 秒旧版录制；正式提交前用当前 UI 重录，或上传 YouTube/Unlisted / Loom |
+| **Video** | `docs/AgriGuard_Demo_Final.mp4`（仓库内） | 121 秒，2026-10-28 从规范线上入口实录（含 Run Scenario 真实触发），沿用原 AI 配音与字幕；也可上传 YouTube/Unlisted / Loom |
 
 ---
 
@@ -122,19 +122,19 @@ The product target is to compress the claim cycle from 12 weeks to under 3 minut
 
 ---
 
-## 6. 最终验收记录（2026-10-03）
+## 6. 最终验收记录（2026-10-28）
 
 | 项目 | 结果 |
 |:---|:---|
-| 线上部署 | `https://agri-guard-api-live.vercel.app` · release `f369ca1` · PostGIS persistent · `scripts/verify_deployment.py` **15/15 PASS** |
+| 线上部署 | `https://agri-guard-api-live.vercel.app` · release `4857d79` · Neon PostGIS persistent · `scripts/verify_deployment.py` **15/15 PASS** |
 | 实时告警 | 前端 bundle 生成绝对 `wss://` 地址；服务端 `/ws/alerts/` 返回 `101 Switching Protocols` |
-| 验收截图 | `docs/screenshots/09`–`14` 已于 2026-10-03 从规范线上入口重拍，含 `[SIMULATED]`、`PENDING`、无 TxHash 的完整时间轴 |
-| PPT | `docs/AgriGuard_Presentation_submission.pptx` · 12 slides · SHA-256 `289f5e7ebbffdb731235ee862ebdcbbed16ba28664f1c36b80b7c758e71fb17f` |
-| 视频 | `docs/AgriGuard_Demo_Final.mp4` · 121.066667s · 1440×900 · SHA-256 `752C68B57FFDBB0E512BC5162675BD437161E1D1D7D96BCC01CAB6E090B07693` |
-| 自动化测试 | `manage.py test core` **50/50 passed** |
+| 验收截图 | `docs/screenshots/09`–`14` 已于 2026-10-28 从规范线上入口重拍：田块级 GNSS 农场 + GNSS 边界证据卡、`[SIMULATED]`、`PENDING`、无 TxHash 的完整时间轴 |
+| PPT | `docs/AgriGuard_Presentation_submission.pptx` · 12 slides（第 1/5/7/9 页配图换为 2026-10-28 线上截图，第 1/10 页文字修正）· SHA-256 `1ba106a5f9fd608ae6f3a78ea51a406203db224e326869a1796011784529b863` |
+| 视频 | `docs/AgriGuard_Demo_Final.mp4` · 121.1s · 1440×900 · H.264 + AAC + 英文软字幕 · 含 C2PA 内容凭证 · SHA-256 `9c0a1299ee72008fbf31f786d407cb6a2564b40aaf6e0b4d253295de77943588` |
+| 自动化测试 | `manage.py test core` **56/56 passed**（新增：演示农场田块尺寸与 GNSS 元数据、规则引擎可复算赔付与证据哈希、时间轴标注、旧数据修复、失败回滚） |
 | 前端 | `npm run lint` 与 production `npm run build` 通过 |
 | Django | `manage.py check`、迁移漂移检查通过；生产环境模式下仅保留 HSTS subdomain/preload 提示 |
 | 智能合约 | `solc 0.8.24` 编译通过 |
 | 公开数据边界 | 匿名 API 不返回农场电话/钱包；events/alerts/claims 为只读，未登录或公开 demo 用户不能篡改审计记录 |
 
-> 正式提交前仍建议重录视频，使 121 秒演示与 2026-10-03 的界面和截图完全一致。
+> 演示数据为带标注的模拟：3 块农场边界沿 Esri World Imagery 中真实田埂描绘，GNSS 采集元数据为 `demo-sim`，界面显示 *Demo record*。

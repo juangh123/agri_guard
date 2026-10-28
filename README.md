@@ -518,7 +518,7 @@ agri_guard/
 | **Submission Track** | **Challenge II — Synergizing Agriculture and Geomatics**; disaster risk reduction is addressed through flood, drought, and wildfire triggers |
 | **Built with** | Django, PostGIS, MapLibre, Esri Living Atlas, Solidity, OpenAI, Twilio |
 | **Team** | Jason (juangh123) — solo builder |
-| **Demo Video** | [`docs/AgriGuard_Demo_Final.mp4`](docs/AgriGuard_Demo_Final.mp4) — 121s honest-settlement walkthrough; re-record from the canonical URL before final submission so the visuals match the refreshed screenshots |
+| **Demo Video** | [`docs/AgriGuard_Demo_Final.mp4`](docs/AgriGuard_Demo_Final.mp4) — 121s walkthrough recorded on the canonical live URL (2026-10-28): field-scale GNSS evidence, Living Atlas layers, a real Run Scenario claim, explicit `PENDING` settlement |
 | **Presentation** | [`docs/AgriGuard_Presentation_submission.pptx`](docs/AgriGuard_Presentation_submission.pptx) |
 | **Submission window** | Registration opens 2026-11-10 10:00 UTC; submissions 2026-11-14 08:23 UTC → 2026-11-17 20:00 UTC (Beijing: 11-14 16:23 → 11-18 04:00) |
 | **BUIDL worksheet** | [`docs/DORAHACKS_BUIDL_FORM.md`](docs/DORAHACKS_BUIDL_FORM.md) |

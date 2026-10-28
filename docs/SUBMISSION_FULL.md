@@ -216,7 +216,7 @@ See [Judging Criteria Mapping](https://github.com/juangh123/agri_guard/blob/main
 - Live status: https://agri-guard-api-live.vercel.app/api/health/
 - Repository: [github.com/juangh123/agri_guard](https://github.com/juangh123/agri_guard)
 - Interactive demo: [docs/INTERACTIVE_DEMO.html](https://github.com/juangh123/agri_guard/blob/main/docs/INTERACTIVE_DEMO.html)
-- Demo video: [docs/AgriGuard_Demo_Final.mp4](https://github.com/juangh123/agri_guard/blob/main/docs/AgriGuard_Demo_Final.mp4) (rebuilt against the current honest-settlement UI)
+- Demo video: [docs/AgriGuard_Demo_Final.mp4](https://github.com/juangh123/agri_guard/blob/main/docs/AgriGuard_Demo_Final.mp4) (recorded on the live URL on 2026-10-28)
 - Presentation: [docs/AgriGuard_Presentation_submission.pptx](https://github.com/juangh123/agri_guard/blob/main/docs/AgriGuard_Presentation_submission.pptx)
 - Architecture: [docs/ARCHITECTURE.md](https://github.com/juangh123/agri_guard/blob/main/docs/ARCHITECTURE.md)
 - Trigger code: [docs/TRIGGER_LOGIC_AND_CODE.md](https://github.com/juangh123/agri_guard/blob/main/docs/TRIGGER_LOGIC_AND_CODE.md)
