@@ -3,19 +3,21 @@ import json
 import os
 
 from rest_framework import viewsets, status
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.gis.geos import GEOSGeometry, Polygon
-from django.db import connection
+from django.db import IntegrityError, connection, transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
+from .gnss_validation import GnssValidationError, validate_farm_polygon, validate_gnss_accuracy
 from .models import Farm, DisasterEvent, RiskAlert, Claim
 from .serializers import FarmSerializer, DisasterEventSerializer, RiskAlertSerializer, ClaimSerializer
+from .throttles import RegisterRateThrottle
 
 class FarmViewSet(viewsets.ModelViewSet):
     queryset = Farm.objects.all()
@@ -313,29 +315,36 @@ class ClaimViewSet(viewsets.ReadOnlyModelViewSet):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([RegisterRateThrottle])
 def farmer_register(request):
     """
     Public farmer onboarding endpoint.
 
     Creates a Django user and a GNSS polygon farm in one request, then returns
     JWT tokens so the newly onboarded farmer is logged in immediately.
+
+    Everything in the body is untrusted: the boundary and GNSS metadata are
+    validated by ``core.gnss_validation`` and the user and farm are created in
+    one transaction so a rejected farm never leaves an orphaned account behind.
     """
+    if not isinstance(request.data, dict):
+        return Response({'error': 'Request body must be a JSON object.'}, status=status.HTTP_400_BAD_REQUEST)
+
     username = str(request.data.get('username', '')).strip()
     password = str(request.data.get('password', ''))
     farm_name = str(request.data.get('farm_name', '')).strip()
     phone_number = str(request.data.get('phone_number', '')).strip()
     geometry = request.data.get('geometry')
     wallet_address = request.data.get('wallet_address') or None
+    if wallet_address is not None:
+        wallet_address = str(wallet_address).strip() or None
     gnss_device_id = str(request.data.get('gnss_device_id', '')).strip()
-    gnss_accuracy_raw = request.data.get('gnss_accuracy_m')
     gnss_captured_raw = request.data.get('gnss_captured_at')
 
     try:
-        gnss_accuracy_m = float(gnss_accuracy_raw) if gnss_accuracy_raw not in (None, '') else None
-        if gnss_accuracy_m is not None and gnss_accuracy_m < 0:
-            return Response({'error': 'gnss_accuracy_m must be greater than or equal to 0.'}, status=status.HTTP_400_BAD_REQUEST)
-    except (TypeError, ValueError):
-        return Response({'error': 'gnss_accuracy_m must be a number.'}, status=status.HTTP_400_BAD_REQUEST)
+        gnss_accuracy_m = validate_gnss_accuracy(request.data.get('gnss_accuracy_m'))
+    except GnssValidationError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
     gnss_captured_at = parse_datetime(str(gnss_captured_raw)) if gnss_captured_raw else None
     if gnss_captured_raw and not gnss_captured_at:
@@ -345,6 +354,22 @@ def farmer_register(request):
         return Response({'error': 'Username and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
     if not farm_name or not phone_number or not geometry:
         return Response({'error': 'farm_name, phone_number, and geometry are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Reject over-long values up front: the database would raise on them and
+    # the request would end as a 500 instead of a clear 400.
+    for label, value, limit in (
+        ('username', username, 150),
+        ('farm_name', farm_name, 255),
+        ('phone_number', phone_number, 20),
+        ('gnss_device_id', gnss_device_id, 100),
+        ('wallet_address', wallet_address or '', 42),
+    ):
+        if len(value) > limit:
+            return Response(
+                {'error': f'{label} must be at most {limit} characters.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
     if User.objects.filter(username__iexact=username).exists():
         return Response({'error': 'Username is already taken.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -353,24 +378,28 @@ def farmer_register(request):
         if geofence.srid is None:
             geofence.srid = 4326
         geofence.transform(4326)
-        if geofence.geom_type != 'Polygon':
-            return Response({'error': 'The supplied farm geometry must be a Polygon.'}, status=status.HTTP_400_BAD_REQUEST)
-        if not geofence.valid:
-            return Response({'error': 'The supplied farm geometry is invalid.'}, status=status.HTTP_400_BAD_REQUEST)
+        validate_farm_polygon(geofence)
+    except GnssValidationError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as exc:
         return Response({'error': f'Invalid farm geometry: {exc}'}, status=status.HTTP_400_BAD_REQUEST)
 
-    user = User.objects.create_user(username=username, password=password)
-    farm = Farm.objects.create(
-        owner=user,
-        name=farm_name,
-        phone_number=phone_number,
-        wallet_address=wallet_address,
-        geofence=geofence,
-        gnss_device_id=gnss_device_id,
-        gnss_accuracy_m=gnss_accuracy_m,
-        gnss_captured_at=gnss_captured_at,
-    )
+    try:
+        with transaction.atomic():
+            user = User.objects.create_user(username=username, password=password)
+            farm = Farm.objects.create(
+                owner=user,
+                name=farm_name,
+                phone_number=phone_number,
+                wallet_address=wallet_address,
+                geofence=geofence,
+                gnss_device_id=gnss_device_id,
+                gnss_accuracy_m=gnss_accuracy_m,
+                gnss_captured_at=gnss_captured_at,
+            )
+    except IntegrityError:
+        # Two simultaneous sign-ups can pass the exists() check above together.
+        return Response({'error': 'Username is already taken.'}, status=status.HTTP_400_BAD_REQUEST)
 
     refresh = RefreshToken.for_user(user)
     return Response({

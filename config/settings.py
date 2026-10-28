@@ -228,6 +228,10 @@ REST_FRAMEWORK = {
     )
 }
 
+# Public farmer onboarding is unauthenticated and creates a user plus a farm, so
+# it gets its own per-client limit (see core/throttles.py). Format: "N/hour".
+REGISTER_THROTTLE_RATE = env.str('REGISTER_THROTTLE_RATE', default='30/hour')
+
 from datetime import timedelta
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=1),

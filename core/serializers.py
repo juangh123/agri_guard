@@ -1,5 +1,6 @@
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 from rest_framework import serializers
+from .gnss_validation import GnssValidationError, validate_farm_polygon, validate_gnss_accuracy
 from .models import Farm, DisasterEvent, RiskAlert, Claim, ClaimTimeline
 
 class FarmSerializer(GeoFeatureModelSerializer):
@@ -13,6 +14,22 @@ class FarmSerializer(GeoFeatureModelSerializer):
             'gnss_device_id', 'gnss_accuracy_m', 'gnss_captured_at', 'created_at'
         ]
         read_only_fields = ['owner']
+
+    def validate_gnss_accuracy_m(self, value):
+        try:
+            return validate_gnss_accuracy(value)
+        except GnssValidationError as exc:
+            raise serializers.ValidationError(str(exc))
+
+    def validate_geofence(self, value):
+        geometry = value
+        if geometry.srid not in (None, 4326):
+            geometry = geometry.transform(4326, clone=True)
+        try:
+            validate_farm_polygon(geometry)
+        except GnssValidationError as exc:
+            raise serializers.ValidationError(str(exc))
+        return value
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

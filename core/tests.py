@@ -401,10 +401,11 @@ class FarmApiPermissionTests(TestCase):
         self.user = make_user()
         self.farm_payload = {
             'type': 'Feature',
+            # ~1 ha field, in line with the plot-size limits enforced by the API.
             'geometry': {
                 'type': 'Polygon',
-                'coordinates': [[[36.80, -1.30], [36.80, -1.20],
-                                 [36.90, -1.20], [36.90, -1.30], [36.80, -1.30]]],
+                'coordinates': [[[36.8000, -1.3000], [36.8000, -1.2991],
+                                 [36.8009, -1.2991], [36.8009, -1.3000], [36.8000, -1.3000]]],
             },
             'properties': {
                 'name': 'API Farm',
@@ -901,3 +902,246 @@ class HealthEndpointTests(TestCase):
         self.assertIsNotNone(payload['started_at'])
         self.assertGreaterEqual(payload['uptime_seconds'], 89)
         self.assertLess(payload['uptime_seconds'], 300)
+
+
+# ---------------------------------------------------------------------------
+# GNSS boundary validation hardening
+# ---------------------------------------------------------------------------
+
+def field_geojson(lng=35.0, lat=0.5, half_side_m=50.0):
+    """Square field polygon (GeoJSON geometry) with the given half side length."""
+    import math
+
+    d_lat = half_side_m / 111320.0
+    d_lng = half_side_m / (111320.0 * math.cos(math.radians(lat)))
+    return {
+        'type': 'Polygon',
+        'coordinates': [[
+            [lng - d_lng, lat - d_lat],
+            [lng + d_lng, lat - d_lat],
+            [lng + d_lng, lat + d_lat],
+            [lng - d_lng, lat + d_lat],
+            [lng - d_lng, lat - d_lat],
+        ]],
+    }
+
+
+def circle_geojson(n_vertices, lng=35.0, lat=0.5, radius_m=60.0):
+    import math
+
+    ring = []
+    for i in range(n_vertices):
+        angle = 2 * math.pi * i / n_vertices
+        ring.append([
+            lng + (radius_m * math.cos(angle)) / (111320.0 * math.cos(math.radians(lat))),
+            lat + (radius_m * math.sin(angle)) / 111320.0,
+        ])
+    ring.append(ring[0])
+    return {'type': 'Polygon', 'coordinates': [ring]}
+
+
+class GnssValidationUnitTests(TestCase):
+    """Pure-function checks for core.gnss_validation."""
+
+    def test_polygon_area_matches_projected_area(self):
+        from .gnss_validation import polygon_area_ha
+
+        for lat, half_side in ((0.5, 50.0), (1.0, 400.0), (-1.3, 1500.0), (45.0, 400.0)):
+            polygon = GEOSGeometry(json_dumps(field_geojson(lat=lat, half_side_m=half_side)), srid=4326)
+            expected_ha = polygon.transform(6933, clone=True).area / 10_000.0
+            self.assertAlmostEqual(
+                polygon_area_ha(polygon) / expected_ha, 1.0, delta=0.01,
+                msg=f'lat={lat} half_side={half_side}',
+            )
+
+    def test_accuracy_must_be_finite_and_plausible(self):
+        from .gnss_validation import GnssValidationError, validate_gnss_accuracy
+
+        self.assertIsNone(validate_gnss_accuracy(None))
+        self.assertIsNone(validate_gnss_accuracy(''))
+        self.assertEqual(validate_gnss_accuracy('4.5'), 4.5)
+        self.assertEqual(validate_gnss_accuracy(0), 0.0)
+        for bad in ('nan', 'NaN', 'inf', '-inf', 'Infinity', -1, '-0.5', 1e9, 'abc', [], True):
+            with self.assertRaises(GnssValidationError, msg=repr(bad)):
+                validate_gnss_accuracy(bad)
+
+    def test_polygon_rules(self):
+        from .gnss_validation import GnssValidationError, validate_farm_polygon
+
+        good = GEOSGeometry(json_dumps(field_geojson()), srid=4326)
+        self.assertAlmostEqual(validate_farm_polygon(good), 1.0, delta=0.05)
+
+        too_big = GEOSGeometry(json_dumps(field_geojson(half_side_m=3000.0)), srid=4326)
+        too_small = GEOSGeometry(json_dumps(field_geojson(half_side_m=1.0)), srid=4326)
+        bowtie = GEOSGeometry(json_dumps({
+            'type': 'Polygon',
+            'coordinates': [[[35.0, 0.5], [35.001, 0.501], [35.001, 0.5], [35.0, 0.501], [35.0, 0.5]]],
+        }), srid=4326)
+        sliver = GEOSGeometry(json_dumps({
+            'type': 'Polygon',
+            'coordinates': [[[35.0, 0.5], [35.5, 0.5], [35.5, 0.50005], [35.0, 0.50005], [35.0, 0.5]]],
+        }), srid=4326)
+        off_planet = GEOSGeometry(json_dumps(field_geojson(lat=95.0)), srid=4326)
+        multi = GEOSGeometry(json_dumps({
+            'type': 'MultiPolygon',
+            'coordinates': [field_geojson()['coordinates']],
+        }), srid=4326)
+        for name, geom in (
+            ('too_big', too_big), ('too_small', too_small), ('bowtie', bowtie),
+            ('sliver', sliver), ('off_planet', off_planet), ('multi', multi),
+        ):
+            with self.assertRaises(GnssValidationError, msg=name):
+                validate_farm_polygon(geom)
+
+
+def json_dumps(value):
+    import json
+
+    return json.dumps(value)
+
+
+class FarmerRegistrationHardeningTests(TestCase):
+    """The public onboarding endpoint must reject data that would poison the demo."""
+
+    URL = '/api/auth/register/'
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        self.client = APIClient()
+        self._n = 0
+
+    def _payload(self, **overrides):
+        self._n += 1
+        payload = {
+            'username': f'newfarmer{self._n}',
+            'password': 'secret123',
+            'farm_name': 'Kitale Plot',
+            'phone_number': '+254700000123',
+            'geometry': field_geojson(),
+            'gnss_device_id': 'browser-geolocation (watchPosition)',
+            'gnss_accuracy_m': 4.2,
+            'gnss_captured_at': '2026-10-28T08:00:00Z',
+        }
+        payload.update(overrides)
+        return payload
+
+    def _assert_rejected(self, response, label):
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, label)
+        self.assertEqual(User.objects.count(), 0, f'{label}: user must not be created')
+        self.assertEqual(Farm.objects.count(), 0, f'{label}: farm must not be created')
+
+    def test_valid_registration_creates_user_and_farm(self):
+        response = self.client.post(self.URL, self._payload(), format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        farm = Farm.objects.get(pk=response.data['farm_id'])
+        self.assertEqual(farm.gnss_accuracy_m, 4.2)
+        self.assertEqual(farm.owner.username, 'newfarmer1')
+
+    def test_non_finite_accuracy_is_rejected(self):
+        for bad in ('NaN', 'nan', 'inf', '-inf', 'Infinity'):
+            response = self.client.post(self.URL, self._payload(gnss_accuracy_m=bad), format='json')
+            self._assert_rejected(response, f'accuracy={bad}')
+
+    def test_absurd_accuracy_is_rejected(self):
+        response = self.client.post(self.URL, self._payload(gnss_accuracy_m=1_000_000), format='json')
+        self._assert_rejected(response, 'accuracy=1e6')
+
+    def test_continent_sized_polygon_is_rejected(self):
+        response = self.client.post(
+            self.URL, self._payload(geometry=field_geojson(half_side_m=2_000_000.0, lat=0.0)), format='json')
+        self._assert_rejected(response, 'continent polygon')
+
+    def test_sub_square_metre_polygon_is_rejected(self):
+        response = self.client.post(
+            self.URL, self._payload(geometry=field_geojson(half_side_m=0.01)), format='json')
+        self._assert_rejected(response, 'tiny polygon')
+
+    def test_out_of_range_coordinates_are_rejected(self):
+        response = self.client.post(
+            self.URL, self._payload(geometry=field_geojson(lat=95.0)), format='json')
+        self._assert_rejected(response, 'lat=95')
+
+    def test_boundary_with_too_many_vertices_is_rejected(self):
+        response = self.client.post(
+            self.URL, self._payload(geometry=circle_geojson(1500)), format='json')
+        self._assert_rejected(response, '1500 vertices')
+
+    def test_dense_but_reasonable_boundary_is_accepted(self):
+        response = self.client.post(
+            self.URL, self._payload(geometry=circle_geojson(200)), format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_oversized_text_fields_are_rejected_without_orphan_user(self):
+        for field, value in (
+            ('gnss_device_id', 'x' * 101),
+            ('farm_name', 'x' * 256),
+            ('phone_number', '9' * 21),
+            ('wallet_address', '0x' + 'a' * 41),
+        ):
+            response = self.client.post(self.URL, self._payload(**{field: value}), format='json')
+            self._assert_rejected(response, field)
+
+    def test_farm_creation_failure_does_not_leave_orphan_user(self):
+        from django.db import DatabaseError
+
+        with mock.patch('core.views.Farm.objects.create', side_effect=DatabaseError('boom')):
+            with self.assertRaises(DatabaseError):
+                self.client.post(self.URL, self._payload(), format='json')
+        self.assertEqual(User.objects.count(), 0)
+
+    def test_registration_is_rate_limited(self):
+        with override_settings(REGISTER_THROTTLE_RATE='2/hour'):
+            codes = [
+                self.client.post(self.URL, self._payload(), format='json').status_code
+                for _ in range(3)
+            ]
+        self.assertEqual(codes, [201, 201, status.HTTP_429_TOO_MANY_REQUESTS])
+
+
+class FarmApiGeometryHardeningTests(TestCase):
+    """Authenticated create/update must enforce the same rules as registration."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = make_user('geometry_owner')
+        self.client.force_authenticate(user=self.user)
+
+    def _feature(self, geometry=None, **properties):
+        props = {
+            'name': 'API Plot',
+            'crop_type': 'maize',
+            'phone_number': '+254700000009',
+        }
+        props.update(properties)
+        return {'type': 'Feature', 'geometry': geometry or field_geojson(), 'properties': props}
+
+    def test_valid_plot_is_accepted(self):
+        response = self.client.post('/api/farms/', self._feature(gnss_accuracy_m=3.5), format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_non_finite_accuracy_cannot_poison_the_public_list(self):
+        for bad in ('NaN', 'Infinity', '-Infinity'):
+            response = self.client.post('/api/farms/', self._feature(gnss_accuracy_m=bad), format='json')
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, bad)
+        self.assertEqual(Farm.objects.count(), 0)
+        anonymous = APIClient()
+        self.assertEqual(anonymous.get('/api/farms/').status_code, status.HTTP_200_OK)
+
+    def test_oversized_polygon_is_rejected_on_create(self):
+        response = self.client.post(
+            '/api/farms/', self._feature(geometry=field_geojson(half_side_m=50_000.0)), format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_owner_cannot_enlarge_plot_beyond_limit_on_update(self):
+        farm = Farm.objects.create(
+            owner=self.user, name='Own Plot', phone_number='+254700000010',
+            geofence=GEOSGeometry(json_dumps(field_geojson()), srid=4326),
+        )
+        response = self.client.patch(
+            f'/api/farms/{farm.id}/',
+            {'type': 'Feature', 'geometry': field_geojson(half_side_m=50_000.0), 'properties': {}},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
