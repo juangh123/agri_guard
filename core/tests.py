@@ -1006,9 +1006,10 @@ class FarmerRegistrationHardeningTests(TestCase):
     URL = '/api/auth/register/'
 
     def setUp(self):
-        from django.core.cache import cache
+        from django.core.cache import caches
 
-        cache.clear()
+        for alias in ('default', 'throttle'):
+            caches[alias].clear()
         self.client = APIClient()
         self._n = 0
 
@@ -1098,6 +1099,58 @@ class FarmerRegistrationHardeningTests(TestCase):
                 for _ in range(3)
             ]
         self.assertEqual(codes, [201, 201, status.HTTP_429_TOO_MANY_REQUESTS])
+
+    def test_rate_limit_is_shared_across_instances(self):
+        """A fresh serverless instance (empty process cache) must see the same count."""
+        from django.core.cache import caches
+
+        with override_settings(REGISTER_THROTTLE_RATE='2/hour'):
+            for _ in range(2):
+                self.assertEqual(
+                    self.client.post(self.URL, self._payload(), format='json').status_code, 201
+                )
+            caches['default'].clear()  # what a new container starts with
+            response = self.client.post(self.URL, self._payload(), format='json')
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_invalid_requests_count_toward_the_limit(self):
+        """Malformed bodies are throttled too, so they cannot be used to probe for free."""
+        with override_settings(REGISTER_THROTTLE_RATE='2/hour'):
+            codes = [
+                self.client.post(self.URL, ['not', 'an', 'object'], format='json').status_code
+                for _ in range(3)
+            ]
+        self.assertEqual(codes, [400, 400, status.HTTP_429_TOO_MANY_REQUESTS])
+
+    def test_throttle_store_failure_falls_back_instead_of_500(self):
+        from django.core.cache import caches
+        from django.db import DatabaseError
+
+        store = caches['throttle']
+        with override_settings(REGISTER_THROTTLE_RATE='1/hour'), \
+                mock.patch.object(store, 'get', side_effect=DatabaseError('cache table missing')), \
+                self.assertLogs('core.throttles', level='WARNING'):
+            first = self.client.post(self.URL, self._payload(), format='json')
+            second = self.client.post(self.URL, self._payload(), format='json')
+        self.assertEqual(first.status_code, 201)
+        # The per-process fallback still brakes the same client.
+        self.assertEqual(second.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_migration_creates_the_throttle_cache_table(self):
+        """The test runner makes cache tables itself, so drop it and run the migration step."""
+        import importlib
+
+        from django.conf import settings
+        from django.db import connection
+
+        migration = importlib.import_module('core.migrations.0008_create_throttle_cache_table')
+        table = settings.THROTTLE_CACHE_TABLE
+        with connection.cursor() as cursor:
+            cursor.execute(f'DROP TABLE {connection.ops.quote_name(table)}')
+        self.assertNotIn(table, connection.introspection.table_names())
+
+        migration.create_cache_tables(None, SimpleNamespace(connection=connection))
+        self.assertIn(table, connection.introspection.table_names())
 
 
 class FarmApiGeometryHardeningTests(TestCase):

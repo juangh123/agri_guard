@@ -232,6 +232,25 @@ REST_FRAMEWORK = {
 # it gets its own per-client limit (see core/throttles.py). Format: "N/hour".
 REGISTER_THROTTLE_RATE = env.str('REGISTER_THROTTLE_RATE', default='30/hour')
 
+# Throttle counters need a store every instance shares; with the per-process
+# default each warm serverless container would count on its own. The database is
+# the one store all instances already share, so it is the default. Set
+# THROTTLE_CACHE_URL to e.g. redis://host:6379/1 to use Redis instead. The table
+# is created by migration core.0008 (and by `manage.py createcachetable`).
+THROTTLE_CACHE_ALIAS = 'throttle'
+THROTTLE_CACHE_TABLE = 'agri_guard_throttle_cache'
+_throttle_cache = env.cache_url(
+    'THROTTLE_CACHE_URL', default=f'dbcache://{THROTTLE_CACHE_TABLE}'
+)
+if _throttle_cache['BACKEND'].endswith('.db.DatabaseCache'):
+    # One row per client per window; cull well above any realistic load. (Redis
+    # would pass OPTIONS to its connection pool, so only the DB cache gets this.)
+    _throttle_cache.setdefault('OPTIONS', {})['MAX_ENTRIES'] = 10000
+CACHES = {
+    'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'},
+    THROTTLE_CACHE_ALIAS: _throttle_cache,
+}
+
 from datetime import timedelta
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=1),

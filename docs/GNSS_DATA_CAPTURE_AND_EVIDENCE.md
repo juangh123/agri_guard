@@ -41,7 +41,7 @@ Reference: `core/models.py`, `core/views.py`, `core/tasks.py`, `core/gnss_valida
 | Extent | no more than 0.1° (about 11 km) in either direction |
 | Vertices | at most 1000 |
 | Text fields | username 150, farm name 255, phone 20, receiver 100, wallet 42 characters |
-| Rate | `REGISTER_THROTTLE_RATE` (default 30/hour per client) on the public registration endpoint |
+| Rate | `REGISTER_THROTTLE_RATE` (default 30/hour per client IP) on the public registration endpoint, malformed requests included. Counters are kept in a database table shared by every serverless instance, so the limit holds across the deployment rather than per container (`THROTTLE_CACHE_URL` can point it at Redis instead). If that store is unreachable the endpoint falls back to per-process counters instead of failing |
 
 **What this does and does not prove.** The accuracy is what the browser and operating system report for their location estimate. A web page cannot see which constellations were tracked, the DOP, whether corrections were applied, or whether the position blends Wi-Fi or cell positioning with GNSS. The server therefore stores accuracy as self-reported metadata. Averaging a few seconds of fixes reduces noise but does not earn a claim of better accuracy than the best individual fix, and the app does not claim one. Phone-grade, single-frequency positioning is typically a few metres in open sky and degrades under canopy or near buildings. Authenticating the position itself (for example Galileo OSNMA) and surveying with an external receiver are on the roadmap below.
 
