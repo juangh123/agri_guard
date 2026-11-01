@@ -110,13 +110,27 @@
 
   /* ─── Scene 3: Register Farm ─── */
   #scene-register { justify-content:center; align-items:center; background:#f4f6f8; }
-  .register-card { background:#fff; padding:30px; border-radius:16px; box-shadow:0 10px 25px rgba(0,0,0,.08); width:400px; }
+  .register-card { background:#fff; padding:24px 30px; border-radius:16px; box-shadow:0 10px 25px rgba(0,0,0,.08); width:420px; max-width:calc(100vw - 32px); max-height:calc(100vh - 40px); overflow-y:auto; }
   .register-card h2 { color:#2c3e50; margin-bottom:10px; }
   .register-card .desc { color:#7f8c8d; font-size:14px; margin-bottom:25px; line-height:1.5; }
   .register-card .loc-box { background:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #eee; margin-bottom:15px; }
   .register-card .loc-acquired { display:flex; align-items:center; gap:8px; color:#2ecc71; font-weight:bold; font-size:14px; }
   .register-card .btn { width:100%; }
   .register-card .label { color:#34495e; }
+  .bc-modes { display:flex; gap:6px; margin:8px 0 10px; }
+  .bc-modes button { flex:1; padding:7px 8px; border-radius:8px; border:1px solid #d5dbe0; background:#fff; color:#34495e; font-size:13px; cursor:pointer; }
+  .bc-modes button.on { background:#2ecc71; border-color:#2ecc71; color:#fff; font-weight:600; }
+  .bc-note { font-size:12px; color:#7f8c8d; line-height:1.45; margin-bottom:8px; }
+  .bc-row { display:flex; gap:12px; align-items:flex-start; }
+  .bc-row svg { flex:0 0 96px; height:96px; background:#eef6ef; border-radius:8px; }
+  .bc-corners { list-style:none; margin:0; padding:0; flex:1; font-size:12px; font-family:ui-monospace,Menlo,Consolas,monospace; color:#2c3e50; }
+  .bc-corners li { display:flex; justify-content:space-between; padding:2px 0; border-bottom:1px dashed #e3e7ea; }
+  .bc-corners li span:last-child { color:#27ae60; }
+  .bc-corners li.worst span:last-child { color:#e67e22; font-weight:600; }
+  .bc-summary { margin-top:8px; font-size:13px; font-weight:600; color:#27ae60; }
+  .bc-quick { display:none; font-size:12px; color:#8a6d3b; background:#fcf8e3; border:1px solid #faebcc; border-radius:6px; padding:8px; }
+  .loc-box.quick .bc-walk { display:none; }
+  .loc-box.quick .bc-quick { display:block; }
 
   /* ─── Scene 4: Disaster Modal ─── */
   #scene-disaster { justify-content:center; align-items:center; }
@@ -363,11 +377,30 @@
         <label class="label">Phone Number (for SMS alerts)</label>
         <input type="tel" class="input" placeholder="+254..." value="+254712345678" style="border-color:#ddd; color:#2c3e50; background:#fff;">
       </div>
-      <div class="loc-box">
-        <label class="label">Farm Location (GNSS)</label>
-        <div class="loc-acquired" id="loc-status">
-          <span style="font-size:18px;">✓</span> Location acquired: -1.2864, 36.8172 (Nairobi)
+      <div class="loc-box" id="bc-box">
+        <label class="label">Farm Boundary (GNSS)</label>
+        <div class="bc-modes" role="tablist">
+          <button type="button" class="on" id="bc-walk-btn" onclick="setBoundaryMode('walk')">Walk the boundary</button>
+          <button type="button" id="bc-quick-btn" onclick="setBoundaryMode('quick')">Quick point</button>
         </div>
+        <div class="bc-walk">
+          <div class="bc-note">Stand at each corner of your field and tap “Mark corner”. Each corner averages the last few seconds of GNSS fixes; fixes coarser than ±30 m are refused.</div>
+          <div class="bc-row">
+            <svg viewBox="0 0 96 96" aria-label="Captured boundary preview">
+              <polygon points="10.1,82 88.6,78.8 84.9,14.2 8,17.9" fill="rgba(46,204,113,.25)" stroke="#27ae60" stroke-width="2"/>
+              <g fill="#27ae60"><circle cx="10.1" cy="82" r="3"/><circle cx="88.6" cy="78.8" r="3"/><circle cx="84.9" cy="14.2" r="3"/><circle cx="8" cy="17.9" r="3"/></g>
+              <g font-size="8" fill="#2c3e50" font-family="sans-serif"><text x="13" y="78">1</text><text x="78" y="74">2</text><text x="75" y="24">3</text><text x="12" y="27">4</text></g>
+            </svg>
+            <ol class="bc-corners">
+              <li><span>1  -1.28640, 36.81720</span><span>±4.8 m</span></li>
+              <li class="worst"><span>2  -1.28635, 36.81853</span><span>±6.2 m</span></li>
+              <li><span>3  -1.28524, 36.81847</span><span>±5.1 m</span></li>
+              <li><span>4  -1.28531, 36.81716</span><span>±3.9 m</span></li>
+            </ol>
+          </div>
+          <div class="bc-summary" id="loc-status">✓ 1.78 ha · 4 corners · worst fix ±6.2 m</div>
+        </div>
+        <div class="bc-quick">Uses one GNSS fix and draws a 50 m placeholder square around it. This is not a surveyed boundary, and the saved receiver note says so.</div>
       </div>
       <button class="btn btn-green" onclick="registerSuccess()">Enable Protection</button>
     </form>
@@ -608,8 +641,18 @@ function loginSuccess() {
   if (isRunning) scheduleNext();
 }
 
+function setBoundaryMode(mode) {
+  const box = document.getElementById('bc-box');
+  box.classList.toggle('quick', mode === 'quick');
+  document.getElementById('bc-walk-btn').classList.toggle('on', mode !== 'quick');
+  document.getElementById('bc-quick-btn').classList.toggle('on', mode === 'quick');
+}
+
 function registerSuccess() {
-  showToast('Farm registered! GNSS coordinates saved.');
+  const quick = document.getElementById('bc-box').classList.contains('quick');
+  showToast(quick
+    ? 'Farm registered with a 50 m placeholder square (not a surveyed boundary).'
+    : 'Farm registered! 4-corner GNSS boundary saved (1.78 ha, worst fix ±6.2 m).');
   currentIdx = 1;
   goScene('scene-dashboard');
   if (isRunning) scheduleNext();
