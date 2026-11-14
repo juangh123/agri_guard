@@ -231,6 +231,8 @@ REST_FRAMEWORK = {
 # Public farmer onboarding is unauthenticated and creates a user plus a farm, so
 # it gets its own per-client limit (see core/throttles.py). Format: "N/hour".
 REGISTER_THROTTLE_RATE = env.str('REGISTER_THROTTLE_RATE', default='30/hour')
+# Public receiver-log preview on the registration page (core.views.gnss_parse_log).
+GNSS_PARSE_THROTTLE_RATE = env.str('GNSS_PARSE_THROTTLE_RATE', default='120/hour')
 
 # Throttle counters need a store every instance shares; with the per-process
 # default each warm serverless container would count on its own. The database is

@@ -15,8 +15,10 @@ import {
   RotateCcw,
   Calendar,
   Sparkles,
-  Satellite
+  Satellite,
+  FileCheck2
 } from "lucide-react";
+import { buildUrl } from "../utils/api";
 import { OPEN_MAP_STYLE, SATELLITE_MAP_STYLE } from "../utils/mapStyles";
 import {
   ARCGIS_LAYERS,
@@ -108,7 +110,10 @@ function gnssEvidence(feature) {
     device: props.gnss_device_id || "",
     capturedAt: props.gnss_captured_at || null,
     center,
-    isDemo: String(props.gnss_device_id || "").startsWith("demo-sim"),
+    id: feature?.id ?? props.id ?? null,
+    source: props.gnss_source || "",
+    isDemo: props.gnss_source === "demo_sim" || String(props.gnss_device_id || "").startsWith("demo-sim"),
+    isReceiver: String(props.gnss_source || "").startsWith("receiver_"),
   };
 }
 
@@ -505,6 +510,11 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
                 {t("gnss_demo_badge")}
               </span>
             )}
+            {evidence.isReceiver && (
+              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-primary/40 bg-primary/10 text-primary">
+                {t("gnss_verified_badge")}
+              </span>
+            )}
           </div>
           <div className="text-[11px] font-semibold text-foreground mb-1.5">{primaryFarmName}</div>
           <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-[11px]">
@@ -536,6 +546,21 @@ export default function MapView({ isDisasterActive, onSimulateDisaster, isSimula
           <div className="mt-2 text-[10px] leading-snug text-muted-foreground break-words" title={evidence.device}>
             {t("gnss_receiver")}: {evidence.device || t("gnss_unset")}
           </div>
+          <div className="mt-1 text-[10px] leading-snug text-muted-foreground">
+            {t("gnss_source")}: {t(`gnss_source_${evidence.source || "unset"}`)}
+          </div>
+          {evidence.id !== null && (
+            <a
+              href={buildUrl(`/farms/${evidence.id}/gnss-evidence/html/`)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
+              data-testid="gnss-evidence-link"
+            >
+              <FileCheck2 className="h-3.5 w-3.5" />
+              {t("gnss_evidence_report")}
+            </a>
+          )}
         </div>
       )}
 

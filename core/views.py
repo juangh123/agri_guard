@@ -4,6 +4,7 @@ import os
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
+from rest_framework.renderers import JSONRenderer, StaticHTMLRenderer
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -14,10 +15,20 @@ from django.db import IntegrityError, connection, transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
+from django.http import HttpResponse
+
+from .gnss_evidence import build_report, render_html
+from .gnss_logs import (
+    MAX_LOG_BYTES,
+    GnssLogError,
+    accuracy_from_evidence,
+    build_boundary_from_log,
+    captured_at_from_evidence,
+)
 from .gnss_validation import GnssValidationError, validate_farm_polygon, validate_gnss_accuracy
-from .models import Farm, DisasterEvent, RiskAlert, Claim
+from .models import Farm, DisasterEvent, GnssCaptureLog, RiskAlert, Claim
 from .serializers import FarmSerializer, DisasterEventSerializer, RiskAlertSerializer, ClaimSerializer
-from .throttles import RegisterRateThrottle
+from .throttles import GnssParseRateThrottle, RegisterRateThrottle
 
 class FarmViewSet(viewsets.ModelViewSet):
     queryset = Farm.objects.all()
@@ -28,7 +39,7 @@ class FarmViewSet(viewsets.ModelViewSet):
     # (test_sms / test_wallet / update / delete) must stay inside the caller's
     # own farms. Without this, any authenticated account could mutate or probe
     # another farmer's contact and payout details.
-    PUBLIC_ACTIONS = {'list', 'retrieve', 'risk_status'}
+    PUBLIC_ACTIONS = {'list', 'retrieve', 'risk_status', 'gnss_evidence', 'gnss_evidence_html'}
 
     def get_queryset(self):
         queryset = Farm.objects.all().order_by('id')
@@ -40,7 +51,35 @@ class FarmViewSet(viewsets.ModelViewSet):
         return queryset.filter(owner=user)
 
     def perform_create(self, serializer):
-        serializer.save(owner=self.request.user)
+        serializer.save(owner=self.request.user, gnss_source='browser')
+
+    # -- GNSS evidence ------------------------------------------------------
+    # Public like the map (no owner, phone or wallet in it); see core/gnss_evidence.py.
+    @action(detail=True, methods=['get'], url_path='gnss-evidence', renderer_classes=[JSONRenderer])
+    def gnss_evidence(self, request, pk=None):
+        return Response(build_report(self.get_object()))
+
+    @action(detail=True, methods=['get'], url_path='gnss-evidence/html', renderer_classes=[StaticHTMLRenderer])
+    def gnss_evidence_html(self, request, pk=None):
+        farm = self.get_object()
+        # Relative, so it stays correct behind the proxy whatever host/scheme it forwards.
+        json_url = request.path.rsplit('html', 1)[0]
+        response = Response(render_html(build_report(farm), json_url))
+        response['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:"
+        return response
+
+    # The raw receiver log can carry when the farmer was on the plot; owner only.
+    @action(detail=True, methods=['get'], url_path='gnss-log', permission_classes=[IsAuthenticated])
+    def gnss_log(self, request, pk=None):
+        farm = self.get_object()
+        log = GnssCaptureLog.objects.filter(farm=farm).first()
+        if log is None:
+            return Response({'error': 'This farm has no stored receiver log.'}, status=status.HTTP_404_NOT_FOUND)
+        filename = (log.filename or f'farm-{farm.id}.{log.format}').replace('"', '')
+        response = HttpResponse(log.content, content_type='text/plain; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['X-Content-SHA256'] = log.sha256
+        return response
 
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
@@ -313,6 +352,49 @@ class ClaimViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = self.get_serializer(claim)
         return Response(serializer.data.get('timeline', []))
 
+def geometry_supplied(data):
+    return data.get('geometry') not in (None, '', {})
+
+
+def unpack_gnss_log(value):
+    """Validate the ``gnss_log`` request object; return (content, format, filename)."""
+    if not isinstance(value, dict):
+        raise GnssLogError('gnss_log must be an object: {"content": "...", "format": "auto|nmea|gpx", "filename": "..."}.')
+    content = value.get('content')
+    if not isinstance(content, str):
+        raise GnssLogError('gnss_log.content must be the text of the NMEA or GPX file.')
+    if len(content) > MAX_LOG_BYTES:
+        raise GnssLogError(f'The receiver log is larger than {MAX_LOG_BYTES} bytes.')
+    log_format = str(value.get('format') or 'auto').strip().lower()
+    filename = str(value.get('filename') or '').strip()
+    # Only the base name, so a stored filename can never carry a path.
+    filename = filename.replace('\\', '/').rsplit('/', 1)[-1][:120]
+    return content, log_format, filename
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@throttle_classes([GnssParseRateThrottle])
+def gnss_parse_log(request):
+    """Preview: build a boundary from a receiver log without storing anything.
+
+    The registration page shows this to the farmer before they sign up; the
+    sign-up request then sends the same log and the server parses it again.
+    """
+    if not isinstance(request.data, dict):
+        return Response({'error': 'Request body must be a JSON object.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        content, log_format, filename = unpack_gnss_log(request.data)
+        polygon, evidence = build_boundary_from_log(content, log_format, filename)
+    except GnssValidationError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({
+        'geometry': json.loads(polygon.geojson),
+        'evidence': evidence,
+        'accuracy_m': accuracy_from_evidence(evidence),
+    })
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @throttle_classes([RegisterRateThrottle])
@@ -324,7 +406,9 @@ def farmer_register(request):
     JWT tokens so the newly onboarded farmer is logged in immediately.
 
     Everything in the body is untrusted: the boundary and GNSS metadata are
-    validated by ``core.gnss_validation`` and the user and farm are created in
+    validated by ``core.gnss_validation``. With ``gnss_log`` (raw NMEA/GPX) the
+    server builds the boundary and accuracy itself (``core.gnss_logs``) and
+    stores the log. The user and farm are created in
     one transaction so a rejected farm never leaves an orphaned account behind.
     """
     if not isinstance(request.data, dict):
@@ -340,20 +424,43 @@ def farmer_register(request):
         wallet_address = str(wallet_address).strip() or None
     gnss_device_id = str(request.data.get('gnss_device_id', '')).strip()
     gnss_captured_raw = request.data.get('gnss_captured_at')
+    gnss_log = request.data.get('gnss_log')
+    capture_method = str(request.data.get('gnss_capture_method', '')).strip()
 
-    try:
-        gnss_accuracy_m = validate_gnss_accuracy(request.data.get('gnss_accuracy_m'))
-    except GnssValidationError as exc:
-        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    if gnss_log is not None:
+        # The server builds the boundary, accuracy and capture time from the log
+        # itself; whatever the client claims about them is ignored.
+        if geometry_supplied(request.data):
+            return Response(
+                {'error': 'Send either geometry or gnss_log, not both: with a receiver log the server builds the boundary.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            log_content, log_format, log_filename = unpack_gnss_log(gnss_log)
+            geofence, evidence = build_boundary_from_log(log_content, log_format, log_filename)
+        except GnssValidationError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        gnss_accuracy_m = accuracy_from_evidence(evidence)
+        gnss_captured_at = captured_at_from_evidence(evidence)
+        gnss_source = evidence['source']
+        if not gnss_device_id:
+            gnss_device_id = f"receiver log: {log_filename or evidence['format'].upper()}"[:100]
+    else:
+        evidence = {}
+        gnss_source = {'walk': 'browser_walk', 'quick': 'browser_quick'}.get(capture_method, 'browser')
+        try:
+            gnss_accuracy_m = validate_gnss_accuracy(request.data.get('gnss_accuracy_m'))
+        except GnssValidationError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-    gnss_captured_at = parse_datetime(str(gnss_captured_raw)) if gnss_captured_raw else None
-    if gnss_captured_raw and not gnss_captured_at:
-        return Response({'error': 'gnss_captured_at must be an ISO 8601 datetime.'}, status=status.HTTP_400_BAD_REQUEST)
+        gnss_captured_at = parse_datetime(str(gnss_captured_raw)) if gnss_captured_raw else None
+        if gnss_captured_raw and not gnss_captured_at:
+            return Response({'error': 'gnss_captured_at must be an ISO 8601 datetime.'}, status=status.HTTP_400_BAD_REQUEST)
 
     if not username or not password:
         return Response({'error': 'Username and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
-    if not farm_name or not phone_number or not geometry:
-        return Response({'error': 'farm_name, phone_number, and geometry are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not farm_name or not phone_number or not (geometry or gnss_log is not None):
+        return Response({'error': 'farm_name, phone_number, and geometry (or gnss_log) are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
     # Reject over-long values up front: the database would raise on them and
     # the request would end as a 500 instead of a clear 400.
@@ -373,16 +480,17 @@ def farmer_register(request):
     if User.objects.filter(username__iexact=username).exists():
         return Response({'error': 'Username is already taken.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    try:
-        geofence = GEOSGeometry(json.dumps(geometry))
-        if geofence.srid is None:
-            geofence.srid = 4326
-        geofence.transform(4326)
-        validate_farm_polygon(geofence)
-    except GnssValidationError as exc:
-        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-    except Exception as exc:
-        return Response({'error': f'Invalid farm geometry: {exc}'}, status=status.HTTP_400_BAD_REQUEST)
+    if gnss_log is None:
+        try:
+            geofence = GEOSGeometry(json.dumps(geometry))
+            if geofence.srid is None:
+                geofence.srid = 4326
+            geofence.transform(4326)
+            validate_farm_polygon(geofence)
+        except GnssValidationError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({'error': f'Invalid farm geometry: {exc}'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         with transaction.atomic():
@@ -396,7 +504,18 @@ def farmer_register(request):
                 gnss_device_id=gnss_device_id,
                 gnss_accuracy_m=gnss_accuracy_m,
                 gnss_captured_at=gnss_captured_at,
+                gnss_source=gnss_source,
+                gnss_evidence=evidence,
             )
+            if gnss_log is not None:
+                GnssCaptureLog.objects.create(
+                    farm=farm,
+                    format=evidence['format'],
+                    filename=evidence['filename'],
+                    sha256=evidence['log_sha256'],
+                    size_bytes=evidence['log_bytes'],
+                    content=log_content,
+                )
     except IntegrityError:
         # Two simultaneous sign-ups can pass the exists() check above together.
         return Response({'error': 'Username is already taken.'}, status=status.HTTP_400_BAD_REQUEST)

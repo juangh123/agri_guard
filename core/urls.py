@@ -7,6 +7,7 @@ from .views import (
     ClaimViewSet,
     chat_assistant,
     farmer_register,
+    gnss_parse_log,
     health,
 )
 
@@ -20,4 +21,5 @@ urlpatterns = router.urls + [
     path('health/', health, name='health'),
     path('chat/', chat_assistant, name='chat_assistant'),
     path('auth/register/', farmer_register, name='farmer_register'),
+    path('gnss/parse-log/', gnss_parse_log, name='gnss_parse_log'),
 ]

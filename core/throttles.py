@@ -42,3 +42,12 @@ class RegisterRateThrottle(AnonRateThrottle):
             )
             self.cache = caches['default']
             return super().allow_request(request, view)
+
+
+class GnssParseRateThrottle(RegisterRateThrottle):
+    """Per-client limit on the public receiver-log preview (parsing costs CPU)."""
+
+    scope = 'gnss_parse'
+
+    def get_rate(self):
+        return getattr(settings, 'GNSS_PARSE_THROTTLE_RATE', '120/hour')

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Crosshair, Flag, Footprints, MapPin, RotateCcw, Satellite, Undo2 } from 'lucide-react';
 import { useTranslation } from '../i18n/config';
+import ReceiverLogImport from './ReceiverLogImport';
 import {
   LIMITS,
   addCorner,
@@ -10,7 +11,8 @@ import {
   describeCapture,
 } from '../utils/gnssBoundary';
 
-const MODES = ['walk', 'quick'];
+const MODES = ['walk', 'receiver', 'quick'];
+const MODE_LABELS = { walk: 'boundary_mode_walk', receiver: 'boundary_mode_receiver', quick: 'boundary_mode_quick' };
 
 function accuracyTone(accuracy) {
   if (accuracy <= 10) return 'text-primary';
@@ -23,7 +25,9 @@ function accuracyTone(accuracy) {
  *
  * "Walk the boundary" (default): stand at each corner and mark it; every corner
  * is the weighted mean of the last few seconds of fixes, and the ring is closed
- * from the last corner to the first. "Quick point" keeps the old single-fix
+ * from the last corner to the first. "Receiver file" imports an NMEA/GPX log from
+ * a GNSS receiver; the server builds the boundary and its accuracy from it (see
+ * ReceiverLogImport). "Quick point" keeps the old single-fix
  * path, labelled honestly as a 50 m placeholder square.
  *
  * `onChange` receives null until a usable boundary exists, then
@@ -208,10 +212,12 @@ const BoundaryCapture = ({ onChange }) => {
             onClick={() => switchMode(key)}
             className={tabClass(mode === key)}
           >
-            {t(key === 'walk' ? 'boundary_mode_walk' : 'boundary_mode_quick')}
+            {t(MODE_LABELS[key])}
           </button>
         ))}
       </div>
+
+      {mode === 'receiver' && <ReceiverLogImport onChange={onChange} onMessage={setMessage} />}
 
       {mode === 'quick' && (
         <>

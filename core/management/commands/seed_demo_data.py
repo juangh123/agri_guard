@@ -185,6 +185,7 @@ class Command(BaseCommand):
                 'crop_type': spec['crop_type'],
                 'geofence': boundary_polygon(spec['boundary']),
                 'gnss_device_id': DEMO_GNSS_DEVICE,
+                'gnss_source': 'demo_sim',
                 'gnss_accuracy_m': spec['gnss_accuracy_m'],
                 'gnss_captured_at': parse_datetime(spec['gnss_captured_at']),
             }
@@ -215,6 +216,8 @@ class Command(BaseCommand):
         if farm.crop_type != wanted['crop_type']:
             return True
         if farm.gnss_device_id != wanted['gnss_device_id']:
+            return True
+        if farm.gnss_source != wanted['gnss_source']:
             return True
         if farm.gnss_accuracy_m != wanted['gnss_accuracy_m']:
             return True

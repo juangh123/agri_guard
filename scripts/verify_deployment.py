@@ -247,6 +247,80 @@ def check_public_api(base_url, timeout):
     return ("public_api_geojson", ok, detail)
 
 
+SAMPLE_LOG_PATH = "/samples/SYNTHETIC_mwangi_walk.nmea"
+
+
+def check_gnss_evidence(base_url, timeout):
+    """Receiver-log sample, its server-side preview and a farm evidence report.
+
+    All three are read-only: the preview endpoint parses and stores nothing.
+    """
+    root = base_url.rstrip("/")
+    checks = []
+    try:
+        status, _, body = http_get(root + SAMPLE_LOG_PATH, timeout)
+        sample = body.decode("utf-8", "replace")
+        served = status == 200 and "$GNGGA" in sample
+        checks.append(("gnss_sample_log_served", served, f"HTTP {status} bytes={len(body)}"))
+        if not served:
+            sample = ""
+    except FetchError as exc:
+        checks.append(("gnss_sample_log_served", False, str(exc)))
+        sample = ""
+
+    if sample:
+        request = urllib.request.Request(
+            root + "/api/gnss/parse-log/",
+            data=json.dumps({"content": sample, "filename": SAMPLE_LOG_PATH.rsplit("/", 1)[-1]}).encode(),
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                status, payload = response.status, json.loads(response.read())
+        except urllib.error.HTTPError as exc:
+            status, payload = exc.code, {}
+        except (urllib.error.URLError, ValueError) as exc:
+            status, payload = 0, {"error": str(exc)}
+        evidence = payload.get("evidence") or {}
+        checks.append((
+            "gnss_parse_preview",
+            status == 200 and evidence.get("method") == "walked_perimeter"
+            and evidence.get("accuracy_basis") == "gst",
+            f"HTTP {status} area_ha={evidence.get('area_ha')} accuracy_p95_m={evidence.get('accuracy_p95_m')} "
+            f"rejected={evidence.get('rejected')}",
+        ))
+
+    try:
+        status, _, body = http_get(root + "/api/farms/", timeout, headers={"Accept": "application/json"})
+        features = json.loads(body).get("features") or []
+        farm_id = features[0]["id"] if features else None
+    except (FetchError, ValueError, KeyError, TypeError) as exc:
+        checks.append(("gnss_evidence_report", False, str(exc)))
+        return checks
+    if farm_id is None:
+        checks.append(("gnss_evidence_report", False, "no farms"))
+        return checks
+    try:
+        status, headers, body = http_get(
+            f"{root}/api/farms/{farm_id}/gnss-evidence/", timeout, headers={"Accept": "application/json"}
+        )
+        report = json.loads(body)
+        html_status, html_headers, html_body = http_get(f"{root}/api/farms/{farm_id}/gnss-evidence/html/", timeout)
+    except (FetchError, ValueError) as exc:
+        checks.append(("gnss_evidence_report", False, str(exc)))
+        return checks
+    checks.append((
+        "gnss_evidence_report",
+        status == 200 and len(report.get("report_sha256", "")) == 64
+        and html_status == 200 and b"GNSS boundary evidence" in html_body
+        and "default-src 'none'" in (html_headers.get("Content-Security-Policy") or ""),
+        f"farm={farm_id} source={report.get('capture', {}).get('source')} "
+        f"grade={report.get('uncertainty', {}).get('grade')} html={html_status}",
+    ))
+    return checks
+
+
 def check_websocket_upgrade(base_url, timeout):
     """Attempt a real WebSocket handshake against /ws/alerts/."""
     parsed = urllib.parse.urlsplit(base_url)
@@ -393,6 +467,7 @@ def main(argv=None):
         checks.extend(evaluate_frontend(args.url, args.timeout))
         checks.append(check_public_api(args.url, args.timeout))
         checks.append(check_websocket_upgrade(args.url, args.timeout))
+        checks.extend(check_gnss_evidence(args.url, args.timeout))
 
     print(f"AgriGuard deployment check: {args.url}")
     print(

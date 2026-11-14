@@ -126,7 +126,7 @@ AgriGuard is a working MVP, not a claim that every production integration is alr
 | ERC-20 settlement | **Implemented code path** using a configured oracle wallet and token contract; credentials alone stay `PENDING` unless `LIVE_SETTLEMENT_ENABLED=True`, and no fake transaction hash is ever created |
 | Solidity policy contract | **Reference implementation** included for the planned insurer escrow phase; the current backend does not call it |
 | Threshold ingestion from GEOGLOWS/VIIRS | **Production roadmap**: the map consumes live layers, while the demo trigger uses clearly marked simulated metrics |
-| Raw GNSS/NMEA trace upload | **Production roadmap**; the MVP accepts the resulting WGS84 polygon and capture metadata |
+| Raw GNSS receiver log import (NMEA 0183 / GPX) | **Implemented**: the server builds the boundary and computes the accuracy from the log, stores it with its SHA-256, and re-verifies it in each farm's GNSS evidence report. Sample logs are labelled `SYNTHETIC_`. RINEX/PPP is roadmap |
 
 The one-click demo intentionally simulates threshold metrics so judges can see the complete workflow without paid API keys or real funds. The UI and API label those claims as simulated or pending where applicable.
 
@@ -444,7 +444,7 @@ See [`docs/JUDGING_CRITERIA_MAPPING.md`](docs/JUDGING_CRITERIA_MAPPING.md).
 
 ## 🛰️ GNSS Data & Evidence
 
-GNSS farm boundaries and receiver/accuracy/timestamp metadata are stored for each polygon, spatially intersected in PostGIS, and linked to claims through SHA-256 evidence hashes. The production roadmap extends this with raw trace ingestion and on-chain policy metadata.
+GNSS farm boundaries and receiver/accuracy/timestamp metadata are stored for each polygon, spatially intersected in PostGIS, and linked to claims through SHA-256 evidence hashes. Boundaries can be imported from a GNSS receiver's raw NMEA or GPX log, in which case the server computes the accuracy itself, and every farm has a public GNSS evidence report (`/api/farms/<id>/gnss-evidence/html/`) with an uncertainty grade and reproducibility checks. See [`docs/GNSS_DATA_CAPTURE_AND_EVIDENCE.md`](docs/GNSS_DATA_CAPTURE_AND_EVIDENCE.md) §2.3–2.4. The production roadmap extends this with RINEX/PPP, Galileo OSNMA and on-chain policy metadata.
 
 See [`docs/GNSS_DATA_CAPTURE_AND_EVIDENCE.md`](docs/GNSS_DATA_CAPTURE_AND_EVIDENCE.md).
 

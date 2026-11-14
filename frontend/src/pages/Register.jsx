@@ -37,16 +37,24 @@ const Register = () => {
     setError('');
 
     try {
-      const response = await api.post('/auth/register/', {
+      const account = {
         username: form.username.trim(),
         password: form.password,
         farm_name: form.name.trim(),
         phone_number: form.phone_number.trim(),
-        geometry: capture.geometry,
         gnss_device_id: capture.device,
-        gnss_accuracy_m: capture.accuracy,
-        gnss_captured_at: capture.capturedAt,
-      }, { auth: false });
+      };
+      // With a receiver log the server rebuilds the boundary, accuracy and
+      // capture time from the log itself, so only the log is sent.
+      const boundary = capture.log
+        ? { gnss_log: capture.log }
+        : {
+          geometry: capture.geometry,
+          gnss_accuracy_m: capture.accuracy,
+          gnss_captured_at: capture.capturedAt,
+          gnss_capture_method: capture.kind,
+        };
+      const response = await api.post('/auth/register/', { ...account, ...boundary }, { auth: false });
 
       localStorage.setItem('access_token', response.data.access);
       localStorage.setItem('refresh_token', response.data.refresh);

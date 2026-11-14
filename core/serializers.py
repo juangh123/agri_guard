@@ -11,9 +11,9 @@ class FarmSerializer(GeoFeatureModelSerializer):
         geo_field = "geofence"
         fields = [
             'id', 'name', 'owner', 'crop_type', 'phone_number', 'wallet_address',
-            'gnss_device_id', 'gnss_accuracy_m', 'gnss_captured_at', 'created_at'
+            'gnss_device_id', 'gnss_accuracy_m', 'gnss_captured_at', 'gnss_source', 'created_at'
         ]
-        read_only_fields = ['owner']
+        read_only_fields = ['owner', 'gnss_source']
 
     def validate_gnss_accuracy_m(self, value):
         try:

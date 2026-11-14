@@ -50,8 +50,9 @@ lack insurance because verification is expensive and claims take 4-12 weeks.
 AgriGuard combines GNSS-defined farm boundaries, Earth-observation signals, and
 an auditable settlement workflow:
 
-1. GNSS/WGS84 farm polygons with optional receiver, accuracy, and capture-time
-   metadata.
+1. GNSS/WGS84 farm polygons walked on a phone or imported from a GNSS
+   receiver's raw NMEA/GPX log, with a server-computed accuracy and a public
+   per-farm GNSS evidence report (uncertainty grade, reproducibility checks).
 2. NASA EONET event footprints plus live Esri Living Atlas VIIRS, GEOGLOWS, and
    stream-gauge layers. Automated threshold ingestion is a roadmap item; the
    demo labels simulated metrics clearly.
@@ -81,6 +82,11 @@ basis-risk management, and judging-criteria mapping.
   settlement; it never fabricates a transaction hash.
 - GNSS boundaries are WGS84 polygons in PostGIS and are intersected with hazard
   footprints using `ST_Intersects`.
+- Receiver-log import: on the registration page choose *Receiver file* and
+  *Try a synthetic sample log*. The sample is generated (file names start with
+  `SYNTHETIC_`); the server rejects its injected defects and computes the
+  accuracy from the receiver's GST sentences. Each farm's evidence report is at
+  `/api/farms/<id>/gnss-evidence/html/` and is linked from the Live Map card.
 - NASA EONET event locations are not presented as claim-grade threshold data.
 - OpenAI, Twilio, and ERC-20 calls require both credentials and explicit
   `LIVE_*_ENABLED` gates.
@@ -106,5 +112,5 @@ Ask these through DoraHacks before the submission window:
 - [ ] Paste the short and full descriptions.
 - [ ] Upload the cover image and the six screenshots in order.
 - [x] Re-record the demo video against the canonical live URL (done 2026-10-28); upload it with the BUIDL.
-- [ ] Run `python scripts/verify_deployment.py` and confirm 15/15 PASS.
+- [ ] Run `python scripts/verify_deployment.py` and confirm 18/18 PASS (includes the receiver-log sample, parse preview and GNSS evidence report).
 - [ ] Save the BUIDL URL and update the README `Submission URL` field.

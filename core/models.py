@@ -13,6 +13,21 @@ class Farm(models.Model):
     gnss_device_id = models.CharField(max_length=100, blank=True, default='', help_text="Device or receiver used to capture the GNSS boundary")
     gnss_accuracy_m = models.FloatField(null=True, blank=True, validators=[MinValueValidator(0.0)], help_text="Estimated horizontal accuracy in metres")
     gnss_captured_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the GNSS boundary was captured")
+
+    # Where the boundary and its accuracy came from. Only receiver_* sources have
+    # an accuracy the server computed itself (from the stored receiver log); for
+    # browser_* the accuracy is what the browser reported about itself.
+    GNSS_SOURCE_CHOICES = (
+        ('', 'Not recorded'),
+        ('browser_walk', 'Browser: walked corners'),
+        ('browser_quick', 'Browser: single fix placeholder'),
+        ('browser', 'Browser / API client'),
+        ('receiver_nmea', 'Receiver log: NMEA 0183'),
+        ('receiver_gpx', 'Receiver log: GPX'),
+        ('demo_sim', 'Labelled demo simulation'),
+    )
+    gnss_source = models.CharField(max_length=20, choices=GNSS_SOURCE_CHOICES, blank=True, default='')
+    gnss_evidence = models.JSONField(default=dict, blank=True, help_text="Server-computed summary of the receiver log (core.gnss_logs)")
     
     CROP_CHOICES = (
         ('maize', 'Maize (Corn)'),
@@ -128,3 +143,23 @@ class ClaimTimeline(models.Model):
 
     def __str__(self):
         return f"{self.claim.claim_no} - {self.status}"
+
+
+class GnssCaptureLog(models.Model):
+    """The exact receiver log a farm boundary was built from.
+
+    Kept so anyone with access can re-run ``core.gnss_logs`` on it and get the
+    same polygon and evidence; ``sha256`` is published in the evidence report.
+    """
+    FORMAT_CHOICES = (('nmea', 'NMEA 0183'), ('gpx', 'GPX'))
+
+    farm = models.OneToOneField(Farm, on_delete=models.CASCADE, related_name='gnss_log')
+    format = models.CharField(max_length=8, choices=FORMAT_CHOICES)
+    filename = models.CharField(max_length=120, blank=True, default='')
+    sha256 = models.CharField(max_length=64)
+    size_bytes = models.PositiveIntegerField()
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.farm.name} {self.format} {self.sha256[:12]}"

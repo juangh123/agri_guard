@@ -26,7 +26,9 @@ AgriGuard is a working MVP. This submission separates implemented capability fro
 | Configured ERC-20 settlement path | Implemented |
 | Solidity policy/escrow contract | Reference design, not called by the current MVP |
 | Threshold ingestion from GEOGLOWS/VIIRS | Roadmap; the demo uses labeled simulated metrics |
-| Raw NMEA/RINEX trace storage | Roadmap; the MVP stores the resulting WGS84 polygon and GNSS metadata |
+| Receiver log import (NMEA 0183 / GPX): server-built boundary, server-computed accuracy, stored log + SHA-256 | Implemented (sample logs are labelled synthetic) |
+| Per-farm GNSS evidence report (JSON + printable) with uncertainty grade and reproducibility checks | Implemented |
+| RINEX / PPP post-processing, Galileo OSNMA | Roadmap |
 
 AgriGuard never fabricates a blockchain transaction hash. If Web3 credentials or a farmer wallet are unavailable, the claim remains `PENDING`.
 
@@ -116,7 +118,7 @@ Payouts use insured farm area capped at five hectares, severity, and confidence.
 - `gnss_device_id`, `gnss_accuracy_m`, and `gnss_captured_at` record optional source metadata.
 - Claim evidence binds farm ID, event ID, event time, confidence, and GNSS metadata into a SHA-256 hash.
 - PostGIS `ST_Intersects` performs the spatial test.
-- Raw NMEA/RINEX upload and on-chain policy metadata are roadmap items.
+- Receiver logs (NMEA 0183 / GPX) are parsed on the server: fixes are gated by fix quality, satellites, HDOP and accuracy, the accuracy comes from the receiver's GST error estimate (or an HDOP model, labelled as such), and the stored log is re-parsed by every evidence report to prove the boundary is reproducible. RINEX/PPP, OSNMA and on-chain policy metadata are roadmap items.
 - The Live Map shows a GNSS boundary evidence card (area, vertices, horizontal accuracy, capture date, datum, receiver); self-registration stores the device-reported fix accuracy and time.
 
 ### GNSS service roadmap for Africa
