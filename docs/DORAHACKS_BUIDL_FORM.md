@@ -8,9 +8,14 @@ place.
 
 | Item | Time |
 |:---|:---|
-| Pre-registration opens | 2026-11-10 10:00 UTC / 18:00 Beijing |
-| Submission window opens | 2026-11-14 08:23 UTC / 16:23 Beijing |
-| Submission deadline | 2026-11-17 20:00 UTC / 2026-11-18 04:00 Beijing |
+| Pre-registration opens | 2026-12-10 10:00 UTC / 18:00 Beijing |
+| Submission window opens | 2026-12-14 08:23 UTC / 16:23 Beijing |
+| Submission deadline | 2026-12-17 20:00 UTC / 2026-12-18 04:00 Beijing |
+
+Rechecked on the hackathon page on 2026-11-14 (schema.org `startDate`
+`2026-12-10T10:00:00.000Z`, `endDate` `2026-12-17T20:00:00.000Z`). The
+organizers moved the whole timeline one month later without an announcement,
+so recheck the page before acting on these dates.
 
 Register for the hackathon before attempting to create the BUIDL. The page
 states that eligibility for submissions, bounties, and prizes requires
