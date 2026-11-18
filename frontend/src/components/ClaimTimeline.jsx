@@ -43,8 +43,18 @@ export default function ClaimTimeline({ claimNo }) {
     };
 
     fetchTimeline();
-    const interval = setInterval(fetchTimeline, 30000);
-    return () => clearInterval(interval);
+    // Skip polling while the tab is in the background; catch up on return.
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchTimeline();
+    }, 30000);
+    const onVisibilityChange = () => {
+      if (!document.hidden) fetchTimeline();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [claimNo, t]);
 
   if (loading && !claim) return <div className="p-6 text-sm text-muted-foreground">{t("loading_timeline")}</div>;

@@ -189,8 +189,8 @@ export default function Dashboard() {
     try {
       const [farmsRes, claimsRes, alertsRes, health] = await Promise.all([
         track(api.get('/farms/')),
-        track(api.get('/claims/')),
-        track(api.get('/alerts/')),
+        track(api.getAll('/claims/')),
+        track(api.getAll('/alerts/')),
         healthProbe,
       ]);
 

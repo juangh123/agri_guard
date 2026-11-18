@@ -58,7 +58,11 @@ class RiskAlertSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = RiskAlert
-        fields = '__all__'
+        # Listed explicitly so new model fields are never exposed by accident.
+        fields = [
+            'id', 'farm', 'farm_name', 'event', 'event_type', 'event_title',
+            'status', 'confidence', 'ai_damage_report', 'created_at',
+        ]
         
 class ClaimTimelineSerializer(serializers.ModelSerializer):
     class Meta:
