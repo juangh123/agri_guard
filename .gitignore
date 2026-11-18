@@ -130,3 +130,6 @@ tmp_smoke_test.py
 .railway/
 .env*
 /.vercel-temp.env
+
+# Side-by-side upgrade venvs (e.g. .venv-dj52)
+.venv-*/
