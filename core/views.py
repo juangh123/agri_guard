@@ -4,6 +4,7 @@ import os
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.renderers import JSONRenderer, StaticHTMLRenderer
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticatedOrReadOnly
@@ -29,6 +30,17 @@ from .gnss_validation import GnssValidationError, validate_farm_polygon, validat
 from .models import Farm, DisasterEvent, GnssCaptureLog, RiskAlert, Claim
 from .serializers import FarmSerializer, DisasterEventSerializer, RiskAlertSerializer, ClaimSerializer
 from .throttles import GnssParseRateThrottle, RegisterRateThrottle
+
+
+class ListPagination(PageNumberPagination):
+    """Bounded pages for the alert and claim lists.
+
+    Responses are {count, next, previous, results}. Clients that need the
+    whole list page through with ?page=N (up to page_size=200 per request).
+    """
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 200
 
 class FarmViewSet(viewsets.ModelViewSet):
     queryset = Farm.objects.all()
@@ -336,14 +348,23 @@ class DisasterEventViewSet(viewsets.ReadOnlyModelViewSet):
         })
 
 class RiskAlertViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = RiskAlert.objects.all()
+    # The serializer reads farm.name and event.title/type for every row.
+    # Newest first, with id as a tie-breaker so pages never overlap or skip rows.
+    queryset = RiskAlert.objects.select_related('farm', 'event').order_by('-created_at', '-id')
     serializer_class = RiskAlertSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+    pagination_class = ListPagination
 
 class ClaimViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Claim.objects.all().order_by('-triggered_at')
+    # The serializer reads farm.name, alert.event and the full timeline per row.
+    queryset = (
+        Claim.objects.select_related('farm', 'alert__event')
+        .prefetch_related('timeline')
+        .order_by('-triggered_at', '-id')
+    )
     serializer_class = ClaimSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+    pagination_class = ListPagination
     lookup_field = 'claim_no'
     
     @action(detail=True, methods=['get'])
@@ -545,7 +566,9 @@ def chat_assistant(request):
 
     # 1. Build Context (Retrieval step - simple DB query for MVP, scoped to current user)
     farms = Farm.objects.filter(owner=request.user)
-    alerts = RiskAlert.objects.filter(farm__owner=request.user, status__in=['WARNING', 'DISASTER'])
+    alerts = RiskAlert.objects.filter(
+        farm__owner=request.user, status__in=['WARNING', 'DISASTER']
+    ).select_related('farm', 'event')
     claims = Claim.objects.filter(farm__owner=request.user)
     
     context = "System Context: You are AgriGuard AI, helping African farmers and insurers.\n"

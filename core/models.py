@@ -117,16 +117,35 @@ class Claim(models.Model):
     triggered_at = models.DateTimeField(auto_now_add=True)
     paid_at = models.DateTimeField(null=True, blank=True)
     
+    class Meta:
+        # The claims list is always served newest first.
+        indexes = [
+            models.Index(fields=['-triggered_at', '-id'], name='claim_triggered_at_desc'),
+        ]
+
     def save(self, *args, **kwargs):
         if not self.claim_no:
-            # Generate a unique claim number
-            prefix = "CLM-"
-            # generate something like CLM-2026-0847
-            import datetime
-            year = datetime.datetime.now().year
-            random_str = get_random_string(length=4, allowed_chars='0123456789')
-            self.claim_no = f"{prefix}{year}-{random_str}"
+            self.claim_no = self._generate_claim_no()
         super().save(*args, **kwargs)
+
+    @classmethod
+    def _generate_claim_no(cls):
+        """Return an unused number like CLM-2026-0847.
+
+        Four random digits collide often once a year has ~100 claims, which
+        would make the unique constraint reject a legitimate payout. Check
+        before using a number, and widen to 8 digits if the short space is
+        crowded.
+        """
+        import datetime
+        year = datetime.datetime.now().year
+        for length, attempts in ((4, 10), (8, 10)):
+            for _ in range(attempts):
+                digits = get_random_string(length=length, allowed_chars='0123456789')
+                candidate = f"CLM-{year}-{digits}"
+                if not cls.objects.filter(claim_no=candidate).exists():
+                    return candidate
+        raise RuntimeError('Could not allocate a unique claim number')
         
     def __str__(self):
         return self.claim_no

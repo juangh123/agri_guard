@@ -111,7 +111,7 @@ The product target is to compress the claim cycle from 12 weeks to under 3 minut
 - [ ] GitHub 仓库已设为 **Public**（公开）。
 - [ ] 确保 .env 中的真实 API Key **未被提交**（.gitignore 已配置）。
 - [ ] 录制或答辩前重新部署最新前后端，并确认线上 claim 时间轴包含 `[SIMULATED]` 与 `PENDING`、没有伪造 TxHash，匿名 `/api/farms/` 不返回 `phone_number` / `wallet_address`。
-- [ ] 提交前运行 `python scripts/verify_deployment.py`，确认 18/18 全部 PASS（它会同时检查前端 bundle 是否把 API 指向本域名、实时告警 WebSocket 是否可用，以及接收机日志示例、解析预览和 GNSS 证据报告）；只在**本仓库 README 中写明的** `https://agri-guard-api-live.vercel.app` 上录制，不要使用旧的 `agri-guard-murex.vercel.app`（该地址的后端已下线）。
+- [ ] 提交前运行 `python scripts/verify_deployment.py`，确认 18/18 全部 PASS（它会同时检查前端 bundle 是否把 API 指向本域名、实时告警 WebSocket 是否可用，以及接收机日志示例、解析预览和 GNSS 证据报告）；只在**本仓库 README 中写明的** `https://agri-guard-api-live.vercel.app` 上录制，旧的 `agri-guard-murex.vercel.app` 项目已于 2026-10-28 删除，不要再引用。
 - [ ] 上传 Cover 封面图（使用 docs/screenshots/09_overview_pipeline.png）。
 - [ ] 上传 Gallery 相册（使用 docs/screenshots/09 至 14 共 6 张当前验收截图）。
 - [ ] 审核并上传 `docs/AgriGuard_Demo_Final.mp4`，或替换为基于同一脚本录制的 YouTube/Unlisted / Loom 链接。

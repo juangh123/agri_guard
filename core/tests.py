@@ -617,6 +617,79 @@ class PublicDemoRecordWriteHardeningTests(TestCase):
             )
 
 
+class ListEndpointQueryCountTests(TestCase):
+    """List endpoints must not issue extra queries per row (N+1)."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self._add_rows(1)
+
+    def _add_rows(self, count):
+        start = RiskAlert.objects.count()
+        for i in range(start, start + count):
+            owner = make_user(f'qc_owner_{i}')
+            farm = make_farm(owner, name=f'QC Farm {i}')
+            alert = RiskAlert.objects.create(
+                farm=farm, event=make_event('FLOOD'), status='DISASTER', confidence=90,
+            )
+            claim = Claim.objects.create(
+                farm=farm, alert=alert, status='PENDING', payout_amount=Decimal('50.00'),
+            )
+            ClaimTimeline.objects.create(claim=claim, status='TRIGGERED', detail='t')
+            ClaimTimeline.objects.create(claim=claim, status='PENDING', detail='p')
+
+    def _query_count(self, url):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return len(ctx.captured_queries)
+
+    def test_lists_are_paginated_newest_first_without_overlap(self):
+        self._add_rows(4)  # 5 rows in total
+        for url, key in (('/api/alerts/', 'id'), ('/api/claims/', 'claim_no')):
+            with self.subTest(url=url):
+                first = self.client.get(url, {'page_size': 3}).json()
+                second = self.client.get(url, {'page_size': 3, 'page': 2}).json()
+                self.assertEqual(first['count'], 5)
+                self.assertEqual(len(first['results']), 3)
+                self.assertIsNotNone(first['next'])
+                self.assertEqual(len(second['results']), 2)
+                self.assertIsNone(second['next'])
+                seen = [row[key] for row in first['results'] + second['results']]
+                self.assertEqual(len(set(seen)), 5)
+        newest_claim = Claim.objects.order_by('-triggered_at', '-id').first()
+        claims = self.client.get('/api/claims/').json()['results']
+        self.assertEqual(claims[0]['claim_no'], newest_claim.claim_no)
+
+    def test_page_size_is_capped(self):
+        response = self.client.get('/api/claims/', {'page_size': 10000})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        from core.views import ListPagination
+        self.assertEqual(ListPagination.max_page_size, 200)
+
+    def test_query_count_does_not_grow_with_rows(self):
+        for url in ('/api/alerts/', '/api/claims/'):
+            with self.subTest(url=url):
+                baseline = self._query_count(url)
+                self._add_rows(5)
+                self.assertEqual(self._query_count(url), baseline)
+
+
+class ClaimNumberTests(TestCase):
+    def test_generated_number_skips_numbers_already_in_use(self):
+        farm = make_farm(make_user('claimno_owner'))
+        alert = RiskAlert.objects.create(farm=farm, event=make_event(), status='DISASTER')
+        year = timezone.now().year
+        Claim.objects.create(farm=farm, alert=alert, claim_no=f'CLM-{year}-1111')
+        # First random draw collides with the existing claim, second is free.
+        with mock.patch('core.models.get_random_string', side_effect=['1111', '2222']):
+            claim = Claim.objects.create(farm=farm, alert=alert)
+        self.assertEqual(claim.claim_no, f'CLM-{year}-2222')
+
+
 @override_settings(CHANNEL_LAYERS=IN_MEMORY_CHANNELS)
 class ProcessDisasterEventContractTests(TestCase):
     """tasks↔engine 契约：同步调用 process_disaster_event 全链路无异常。"""

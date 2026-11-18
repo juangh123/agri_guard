@@ -4,7 +4,7 @@
 
 [![Hackathon](https://img.shields.io/badge/Hackathon-GNSS%204%20for%20Space%20Applications%20in%20Africa-blueviolet)](https://dorahacks.io/hackathon/satnav/detail)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Django](https://img.shields.io/badge/Django-4.2-success)](https://www.djangoproject.com/)
+[![Django](https://img.shields.io/badge/Django-5.2-success)](https://www.djangoproject.com/)
 [![PostGIS](https://img.shields.io/badge/PostGIS-3.3-orange)](https://postgis.net/)
 [![Solidity](https://img.shields.io/badge/Solidity-Web3-black)](https://soliditylang.org/)
 
@@ -231,7 +231,7 @@ Farmers receive claim updates via SMS (Twilio, with Mock fallback). A USSD chann
 
 | Layer | Technology |
 |:---|:---|
-| **Backend** | Django 4.2 + Django REST Framework + GeoDjango |
+| **Backend** | Django 5.2 + Django REST Framework + GeoDjango |
 | **Database** | PostgreSQL 15 + PostGIS 3.3 (spatial queries) |
 | **Async Tasks** | Celery 5.3 + Redis 7 |
 | **Real-time** | Django Channels + Daphne WebSocket |

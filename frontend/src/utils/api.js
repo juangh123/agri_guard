@@ -122,6 +122,24 @@ export const api = {
   patch(path, body, options) {
     return request(path, { ...options, method: 'PATCH', body });
   },
+  // Fetch every page of a paginated list ({count, next, results}) and resolve
+  // to { data: [...all rows] }. A plain array response (unpaginated endpoint)
+  // is returned as-is. Pages are requested by number rather than by following
+  // `next`, whose absolute URL may name an internal host behind the proxy.
+  async getAll(path, { pageSize = 200, maxPages = 50, ...options } = {}) {
+    const separator = path.includes('?') ? '&' : '?';
+    const rows = [];
+    for (let page = 1; page <= maxPages; page += 1) {
+      const res = await request(`${path}${separator}page=${page}&page_size=${pageSize}`, {
+        ...options,
+        method: 'GET',
+      });
+      if (Array.isArray(res.data)) return res;
+      rows.push(...(res.data?.results || []));
+      if (!res.data?.next) break;
+    }
+    return { data: rows };
+  },
   request,
 };
 
